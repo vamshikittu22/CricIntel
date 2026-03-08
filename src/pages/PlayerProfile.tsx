@@ -1,6 +1,6 @@
 import { useParams } from "react-router-dom";
 import { AppHeader } from "@/components/AppHeader";
-import { usePlayer, useBattingAnalytics, useDeliveries } from "@/lib/hooks/usePlayers";
+import { usePlayer, useBattingAnalytics, useDeliveries, useBowlingAnalytics, useBowlingDeliveries } from "@/lib/hooks/usePlayers";
 import { getFlag } from "@/lib/countryFlags";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,9 @@ import { DismissalChart } from "@/components/batting/DismissalChart";
 import { BallLengthMatrix } from "@/components/batting/BallLengthMatrix";
 import { PhaseStats } from "@/components/batting/PhaseStats";
 import { PaceVsSpin } from "@/components/batting/PaceVsSpin";
+import { WeaknessEngine } from "@/components/batting/WeaknessEngine";
+import { BowlingDashboard } from "@/components/bowling/BowlingDashboard";
+import { HeadToHead } from "@/components/HeadToHead";
 import { motion } from "framer-motion";
 import { useState } from "react";
 
@@ -20,11 +23,15 @@ const formats = ["T20", "ODI", "Test"] as const;
 export default function PlayerProfile() {
   const { id } = useParams<{ id: string }>();
   const [format, setFormat] = useState<string>("T20");
+  const [section, setSection] = useState<string>("batting");
   const { data: player, isLoading: playerLoading } = usePlayer(id);
   const { data: analytics } = useBattingAnalytics(id, format);
   const { data: deliveries } = useDeliveries(id, format);
+  const { data: bowlingAnalytics } = useBowlingAnalytics(id, format);
+  const { data: bowlingDeliveries } = useBowlingDeliveries(id, format);
 
   const stats = analytics?.[0];
+  const bowlStats = bowlingAnalytics?.[0];
 
   if (playerLoading) {
     return (
@@ -48,7 +55,6 @@ export default function PlayerProfile() {
     );
   }
 
-  // Form score mock (based on recent data richness)
   const formScore = stats
     ? Math.min(10, Math.max(1, ((stats.strike_rate || 0) / 20 + (stats.average || 0) / 15))).toFixed(1)
     : "N/A";
@@ -93,103 +99,108 @@ export default function PlayerProfile() {
           </Card>
         </motion.div>
 
-        {/* Format Toggle */}
-        <Tabs value={format} onValueChange={setFormat}>
+        {/* Section Tabs (Batting / Bowling / Weakness / H2H) */}
+        <Tabs value={section} onValueChange={setSection}>
           <TabsList className="w-full sm:w-auto">
-            {formats.map((f) => (
-              <TabsTrigger key={f} value={f} className="flex-1 sm:flex-none font-heading">
-                {f}
-              </TabsTrigger>
-            ))}
+            <TabsTrigger value="batting" className="flex-1 sm:flex-none font-heading">Batting</TabsTrigger>
+            <TabsTrigger value="bowling" className="flex-1 sm:flex-none font-heading">Bowling</TabsTrigger>
+            <TabsTrigger value="weakness" className="flex-1 sm:flex-none font-heading">Tactical</TabsTrigger>
+            <TabsTrigger value="h2h" className="flex-1 sm:flex-none font-heading">Head-to-Head</TabsTrigger>
           </TabsList>
 
-          {formats.map((f) => (
-            <TabsContent key={f} value={f} className="space-y-8 mt-6">
-              {/* Career Stats */}
-              {stats ? (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3"
-                >
-                  <StatCard label="Matches" value={stats.matches ?? 0} />
-                  <StatCard label="Runs" value={stats.total_runs ?? 0} highlight />
-                  <StatCard label="Average" value={stats.average ?? "-"} />
-                  <StatCard label="Strike Rate" value={stats.strike_rate ?? "-"} />
-                  <StatCard label="4s" value={stats.fours ?? 0} />
-                  <StatCard label="6s" value={stats.sixes ?? 0} />
-                </motion.div>
-              ) : (
-                <p className="text-center text-muted-foreground py-4">
-                  No {f} data available for this player
-                </p>
-              )}
+          {/* Format Toggle (shared) */}
+          <div className="mt-4">
+            <Tabs value={format} onValueChange={setFormat}>
+              <TabsList className="w-full sm:w-auto">
+                {formats.map((f) => (
+                  <TabsTrigger key={f} value={f} className="flex-1 sm:flex-none font-heading text-xs">
+                    {f}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </div>
 
-              {/* Batting Analytics */}
-              {deliveries && deliveries.length > 0 && (
-                <>
-                  <div className="grid gap-6 lg:grid-cols-2">
-                    {/* Wagon Wheel */}
-                    <Card className="border-border/50">
-                      <CardHeader>
-                        <CardTitle className="font-heading text-lg">Scoring Zones</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <WagonWheel deliveries={deliveries} />
-                        <div className="flex justify-center gap-4 mt-3 text-xs">
-                          <span className="flex items-center gap-1">
-                            <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground" /> Singles
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="h-2.5 w-2.5 rounded-full bg-primary" /> Fours
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="h-2.5 w-2.5 rounded-full bg-destructive" /> Sixes
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
+          {/* BATTING */}
+          <TabsContent value="batting" className="space-y-8 mt-6">
+            {stats ? (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+                <StatCard label="Matches" value={stats.matches ?? 0} />
+                <StatCard label="Runs" value={stats.total_runs ?? 0} highlight />
+                <StatCard label="Average" value={stats.average ?? "-"} />
+                <StatCard label="Strike Rate" value={stats.strike_rate ?? "-"} />
+                <StatCard label="4s" value={stats.fours ?? 0} />
+                <StatCard label="6s" value={stats.sixes ?? 0} />
+              </motion.div>
+            ) : (
+              <p className="text-center text-muted-foreground py-4">No {format} batting data</p>
+            )}
 
-                    {/* Dismissals */}
-                    <Card className="border-border/50">
-                      <CardHeader>
-                        <CardTitle className="font-heading text-lg">Dismissal Breakdown</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        {stats ? (
-                          <DismissalChart analytics={stats} />
-                        ) : (
-                          <p className="text-sm text-muted-foreground text-center py-8">No data</p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Ball Length Matrix */}
+            {deliveries && deliveries.length > 0 && (
+              <>
+                <div className="grid gap-6 lg:grid-cols-2">
                   <Card className="border-border/50">
-                    <CardHeader>
-                      <CardTitle className="font-heading text-lg">Ball Length Response</CardTitle>
-                    </CardHeader>
+                    <CardHeader><CardTitle className="font-heading text-lg">Scoring Zones</CardTitle></CardHeader>
                     <CardContent>
-                      <BallLengthMatrix deliveries={deliveries} />
+                      <WagonWheel deliveries={deliveries} />
+                      <div className="flex justify-center gap-4 mt-3 text-xs">
+                        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-muted-foreground" /> Singles</span>
+                        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-primary" /> Fours</span>
+                        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-destructive" /> Sixes</span>
+                      </div>
                     </CardContent>
                   </Card>
+                  <Card className="border-border/50">
+                    <CardHeader><CardTitle className="font-heading text-lg">Dismissal Breakdown</CardTitle></CardHeader>
+                    <CardContent>
+                      {stats ? <DismissalChart analytics={stats} /> : <p className="text-sm text-muted-foreground text-center py-8">No data</p>}
+                    </CardContent>
+                  </Card>
+                </div>
+                <Card className="border-border/50">
+                  <CardHeader><CardTitle className="font-heading text-lg">Ball Length Response</CardTitle></CardHeader>
+                  <CardContent><BallLengthMatrix deliveries={deliveries} /></CardContent>
+                </Card>
+                <div>
+                  <h3 className="font-heading text-lg font-semibold mb-3">Phase-wise Performance</h3>
+                  <PhaseStats deliveries={deliveries} format={format} />
+                </div>
+                <div>
+                  <h3 className="font-heading text-lg font-semibold mb-3">Pace vs Spin</h3>
+                  <PaceVsSpin deliveries={deliveries} />
+                </div>
+              </>
+            )}
+          </TabsContent>
 
-                  {/* Phase-wise Stats */}
-                  <div>
-                    <h3 className="font-heading text-lg font-semibold mb-3">Phase-wise Performance</h3>
-                    <PhaseStats deliveries={deliveries} format={f} />
-                  </div>
+          {/* BOWLING */}
+          <TabsContent value="bowling" className="mt-6">
+            <BowlingDashboard
+              analytics={bowlStats}
+              deliveries={bowlingDeliveries || []}
+              format={format}
+            />
+          </TabsContent>
 
-                  {/* Pace vs Spin */}
-                  <div>
-                    <h3 className="font-heading text-lg font-semibold mb-3">Pace vs Spin</h3>
-                    <PaceVsSpin deliveries={deliveries} />
-                  </div>
-                </>
-              )}
-            </TabsContent>
-          ))}
+          {/* TACTICAL / WEAKNESS ENGINE */}
+          <TabsContent value="weakness" className="mt-6">
+            <WeaknessEngine
+              deliveries={deliveries || []}
+              analytics={stats}
+              format={format}
+            />
+          </TabsContent>
+
+          {/* HEAD-TO-HEAD */}
+          <TabsContent value="h2h" className="mt-6">
+            {id && (
+              <HeadToHead
+                playerId={id}
+                playerRole={player.role}
+                format={format}
+              />
+            )}
+          </TabsContent>
         </Tabs>
       </div>
     </div>

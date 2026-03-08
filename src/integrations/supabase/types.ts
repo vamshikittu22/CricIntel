@@ -202,9 +202,50 @@ export type Database = {
           },
         ]
       }
+      bowling_analytics: {
+        Row: {
+          average: number | null
+          balls_bowled: number | null
+          bowled_out: number | null
+          caught: number | null
+          caught_behind: number | null
+          dots: number | null
+          economy: number | null
+          format: Database["public"]["Enums"]["match_format"] | null
+          lbw: number | null
+          matches: number | null
+          player_id: string | null
+          runs_conceded: number | null
+          strike_rate: number | null
+          stumped: number | null
+          wickets: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deliveries_bowler_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
-      [_ in never]: never
+      head_to_head: {
+        Args: { p_batter_id: string; p_bowler_id: string; p_format?: string }
+        Returns: {
+          average: number
+          balls_faced: number
+          dismissals: number
+          dots: number
+          format: string
+          fours: number
+          runs_scored: number
+          sixes: number
+          strike_rate: number
+        }[]
+      }
     }
     Enums: {
       ball_length_type: "yorker" | "full" | "good" | "short" | "bouncer"
