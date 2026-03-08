@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { ArrowLeftRight, History } from "lucide-react";
 
 export function AppHeader() {
   return (
@@ -16,8 +18,15 @@ export function AppHeader() {
             Cric<span className="text-primary">Intel</span>
           </span>
         </Link>
-        <nav className="flex items-center gap-4 text-sm text-muted-foreground">
-          <span className="hidden sm:inline">Cricket Player Analytics</span>
+        <nav className="flex items-center gap-3 text-sm">
+          <Link
+            to="/compare"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            <ArrowLeftRight className="h-4 w-4" />
+            Compare
+          </Link>
+          <ThemeToggle />
         </nav>
       </div>
     </header>

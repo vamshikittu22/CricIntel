@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { AppHeader } from "@/components/AppHeader";
 import { usePlayer, useBattingAnalytics, useDeliveries, useBowlingAnalytics, useBowlingDeliveries } from "@/lib/hooks/usePlayers";
 import { getFlag } from "@/lib/countryFlags";
