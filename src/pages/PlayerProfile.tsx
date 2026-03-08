@@ -88,6 +88,11 @@ export default function PlayerProfile() {
               {player.bowling_style !== "none" && (
                 <Badge variant="outline">{player.bowling_style}</Badge>
               )}
+              <Link to={`/player/${id}/history`}>
+                <Badge variant="outline" className="cursor-pointer hover:bg-accent transition-colors">
+                  📋 Match History
+                </Badge>
+              </Link>
             </div>
           </div>
           <Card className="shrink-0 border-border/50">
