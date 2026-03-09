@@ -107,10 +107,11 @@ export default function PlayerProfile() {
 
         {/* Section Tabs (Batting / Bowling / Weakness / H2H) */}
         <Tabs value={section} onValueChange={setSection}>
-          <TabsList className="w-full sm:w-auto">
+          <TabsList className="w-full sm:w-auto overflow-x-auto">
             <TabsTrigger value="batting" className="flex-1 sm:flex-none font-heading">Batting</TabsTrigger>
             <TabsTrigger value="bowling" className="flex-1 sm:flex-none font-heading">Bowling</TabsTrigger>
             <TabsTrigger value="weakness" className="flex-1 sm:flex-none font-heading">Tactical</TabsTrigger>
+            <TabsTrigger value="form" className="flex-1 sm:flex-none font-heading">Form</TabsTrigger>
             <TabsTrigger value="h2h" className="flex-1 sm:flex-none font-heading">Head-to-Head</TabsTrigger>
           </TabsList>
 
