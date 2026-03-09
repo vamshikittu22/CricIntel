@@ -198,6 +198,19 @@ export default function PlayerProfile() {
             />
           </TabsContent>
 
+          {/* FORM TRACKER */}
+          <TabsContent value="form" className="mt-6">
+            <FormTracker
+              deliveries={
+                player.role === "bowler"
+                  ? bowlingDeliveries || []
+                  : deliveries || []
+              }
+              playerRole={player.role}
+              format={format}
+            />
+          </TabsContent>
+
           {/* HEAD-TO-HEAD */}
           <TabsContent value="h2h" className="mt-6">
             {id && (
