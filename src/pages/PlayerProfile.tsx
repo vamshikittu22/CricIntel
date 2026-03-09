@@ -15,6 +15,7 @@ import { PaceVsSpin } from "@/components/batting/PaceVsSpin";
 import { WeaknessEngine } from "@/components/batting/WeaknessEngine";
 import { BowlingDashboard } from "@/components/bowling/BowlingDashboard";
 import { HeadToHead } from "@/components/HeadToHead";
+import { FormTracker } from "@/components/form/FormTracker";
 import { motion } from "framer-motion";
 import { useState } from "react";
 
