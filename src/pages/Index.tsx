@@ -1,28 +1,35 @@
 import { AppHeader } from "@/components/AppHeader";
 import { SearchBar } from "@/components/SearchBar";
-import { PlayerCard } from "@/components/PlayerCard";
-import { useFeaturedPlayers } from "@/lib/hooks/usePlayers";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent } from "@/components/ui/card";
+import { useCountries, useRecentMatches } from "@/lib/hooks/usePlayers";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getFlag } from "@/lib/countryFlags";
-import { TrendingUp, Clock, Star } from "lucide-react";
+import { Clock, Trophy, MapPin, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
 
 const quickPicks = [
-  { name: "Virat Kohli", country: "India" },
-  { name: "Steve Smith", country: "Australia" },
+  { name: "V Kohli", country: "India" },
+  { name: "SPD Smith", country: "Australia" },
   { name: "Babar Azam", country: "Pakistan" },
-  { name: "Jasprit Bumrah", country: "India" },
-  { name: "Ben Stokes", country: "England" },
-  { name: "Kane Williamson", country: "New Zealand" },
+  { name: "JJ Bumrah", country: "India" },
+  { name: "BA Stokes", country: "England" },
+  { name: "KS Williamson", country: "New Zealand" },
+  { name: "RG Sharma", country: "India" },
+  { name: "PJ Cummins", country: "Australia" },
+  { name: "JE Root", country: "England" },
+  { name: "Shakib Al Hasan", country: "Bangladesh" },
 ];
 
 const formatFilters = ["All", "Test", "ODI", "T20I", "IPL"];
 
 const Index = () => {
-  const { data: players, isLoading } = useFeaturedPlayers();
+  const [activeCountry, setActiveCountry] = useState("All Countries");
+  const { data: countries } = useCountries();
+  const { data: recentMatches } = useRecentMatches(10);
   const navigate = useNavigate();
   const [activeFormat, setActiveFormat] = useState("All");
   const [recentSearches, setRecentSearches] = useState<{ id: string; name: string; country: string }[]>([]);
@@ -34,39 +41,66 @@ const Index = () => {
     }
   }, []);
 
-  const handleQuickPick = (name: string) => {
-    const found = players?.find((p) => p.name === name);
-    if (found) {
-      const updated = [{ id: found.id, name: found.name, country: found.country }, ...recentSearches.filter(r => r.id !== found.id)].slice(0, 10);
+  const handleQuickPick = async (name: string) => {
+    const { data } = await supabase
+      .from("players")
+      .select("id, name, country")
+      .ilike("name", `%${name}%`)
+      .limit(1);
+    
+    if (data && data.length > 0) {
+      const player = data[0];
+      const updated = [{ id: player.id, name: player.name, country: player.country }, ...recentSearches.filter(r => r.id !== player.id)].slice(0, 10);
       setRecentSearches(updated);
       localStorage.setItem("cricintel_recent", JSON.stringify(updated));
-      navigate(`/player/${found.id}`);
+      navigate(`/player/${player.id}`);
     }
   };
-
-  const featuredPlayer = players?.[0];
 
   return (
     <div className="min-h-screen bg-background">
       <AppHeader />
 
-      {/* Sticky Format Filter Bar */}
+      {/* Sticky Filter Bar */}
       <div className="sticky top-16 z-40 border-b border-border bg-card/90 backdrop-blur-md">
         <div className="container mx-auto px-4">
-          <div className="flex items-center gap-1 py-2 overflow-x-auto no-scrollbar">
-            {formatFilters.map((f) => (
-              <button
-                key={f}
-                onClick={() => setActiveFormat(f)}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
-                  activeFormat === f
-                    ? "bg-primary text-primary-foreground shadow-md"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                }`}
-              >
-                {f}
-              </button>
-            ))}
+          <div className="flex flex-col gap-2 py-3">
+            {/* Format Filter */}
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-1">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground mr-2 shrink-0">Format:</span>
+              {formatFilters.map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setActiveFormat(f)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
+                    activeFormat === f
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                  }`}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+            
+            {/* Country Filter */}
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground mr-2 shrink-0">Team:</span>
+              {countries?.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setActiveCountry(c)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                    activeCountry === c
+                      ? "bg-primary/20 text-primary border border-primary/30"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary border border-transparent"
+                  }`}
+                >
+                  {c !== "All Countries" && <span>{getFlag(c)}</span>}
+                  {c}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -121,49 +155,91 @@ const Index = () => {
         </section>
       )}
 
-      {/* Featured Player Card */}
-      {featuredPlayer && (
-        <section className="container mx-auto px-4 py-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Star className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Featured Player</h2>
+      {/* Browse by Team */}
+      {countries && countries.length > 1 && (
+        <section className="container mx-auto px-4 py-8 border-b border-border/50">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Browse by Team</h2>
+            <Button variant="ghost" size="sm" onClick={() => setActiveCountry("All Countries")}>
+              Reset Filter
+            </Button>
           </div>
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-            <Card className="cursor-pointer overflow-hidden border-primary/20 bg-gradient-to-r from-card to-accent/20" onClick={() => navigate(`/player/${featuredPlayer.id}`)}>
-              <CardContent className="p-6 flex items-center gap-5">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-muted text-3xl ring-2 ring-primary/30">
-                  {getFlag(featuredPlayer.country)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-xl font-bold text-foreground truncate">{featuredPlayer.name}</h3>
-                  <p className="text-sm text-muted-foreground">{featuredPlayer.country}</p>
-                </div>
-                <TrendingUp className="h-8 w-8 text-primary opacity-40" />
-              </CardContent>
-            </Card>
-          </motion.div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
+            {countries.filter(c => c !== "All Countries").map((c) => (
+              <button
+                key={c}
+                onClick={() => setActiveCountry(c)}
+                className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all hover:shadow-lg ${
+                  activeCountry === c 
+                    ? "bg-primary/10 border-primary shadow-md shadow-primary/10" 
+                    : "bg-card border-border hover:border-primary/50"
+                }`}
+              >
+                <span className="text-3xl">{getFlag(c)}</span>
+                <span className="text-xs font-bold text-center line-clamp-1">{c}</span>
+              </button>
+            ))}
+          </div>
         </section>
       )}
 
-      {/* All Players Grid */}
-      <section className="container mx-auto px-4 py-8">
-        <h2 className="text-lg font-semibold mb-5">All Players</h2>
-        {isLoading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-28 rounded-xl" />
+      {/* Recent Matches */}
+      {recentMatches && recentMatches.length > 0 && (
+        <section className="container mx-auto px-4 py-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Trophy className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Recent Matches</h2>
+          </div>
+          <div className="grid gap-3">
+            {recentMatches.map((match) => (
+              <button
+                key={match.id}
+                onClick={() => navigate(`/match/${match.id}`)}
+                className="flex items-center justify-between p-4 rounded-xl border border-border bg-card hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5 transition-all text-left group"
+              >
+                <div className="flex flex-col gap-1 min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-secondary text-secondary-foreground">
+                      {match.format}
+                    </span>
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {new Date(match.match_date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-xl">{getFlag(match.team1)}</span>
+                      <span className="text-sm font-medium truncate">{match.team1}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground shrink-0">vs</span>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-xl">{getFlag(match.team2)}</span>
+                      <span className="text-sm font-medium truncate">{match.team2}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1 ml-4 shrink-0">
+                  {match.result && (
+                    <span className="text-xs font-medium text-primary">
+                      {match.result}
+                    </span>
+                  )}
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <MapPin className="h-3 w-3" />
+                    <span className="max-w-[100px] truncate">{match.venue}</span>
+                  </span>
+                </div>
+              </button>
             ))}
           </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {players?.map((p, i) => (
-              <motion.div key={p.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: i * 0.05 }}>
-                <PlayerCard player={p} />
-              </motion.div>
-            ))}
+          <div className="mt-4 text-center">
+            <Button variant="outline" onClick={() => navigate("/matches")}>
+              View All Matches
+            </Button>
           </div>
-        )}
-      </section>
+        </section>
+      )}
     </div>
   );
 };
