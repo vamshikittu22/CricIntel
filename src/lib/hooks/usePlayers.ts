@@ -59,13 +59,16 @@ export interface PlayerMatchRow {
 
 // ── Hooks ───────────────────────────────────────────
 
-export function usePlayerSearch(query: string) {
+export function usePlayerSearch(query: string, gender: "all" | "male" | "female" = "all") {
   return useQuery({
-    queryKey: ["players", "search", query],
+    queryKey: ["players", "search", query, gender],
     queryFn: async () => {
-      let q = supabase.from("players").select("*").order("name");
+      let q = supabase.from("players").select("*").order("name").limit(50);
       if (query.trim()) {
         q = q.ilike("name", `%${query.trim()}%`);
+      }
+      if (gender !== "all") {
+        q = q.eq("gender", gender);
       }
       const { data, error } = await q;
       if (error) throw error;
@@ -106,7 +109,7 @@ export function usePlayerSummary(playerId: string | undefined) {
   });
 }
 
-export function usePlayerRecentMatches(playerId: string | undefined, format?: string, limit = 20) {
+export function usePlayerRecentMatches(playerId: string | undefined, format?: string, limit = 500) {
   return useQuery({
     queryKey: ["player-recent-matches", playerId, format, limit],
     queryFn: async () => {
@@ -153,17 +156,40 @@ export function usePlayerRecentMatches(playerId: string | undefined, format?: st
   });
 }
 
-export function useFeaturedPlayers() {
+export function useFeaturedPlayers(page = 0, pageSize = 100, country?: string) {
   return useQuery({
-    queryKey: ["featured-players"],
+    queryKey: ["featured-players", page, pageSize, country],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("players")
         .select("*")
         .order("name")
-        .limit(15);
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+      if (country && country !== "All Countries") {
+        q = q.eq("country", country);
+      }
+      
+      const { data, error } = await q;
       if (error) throw error;
       return data as Player[];
+    },
+  });
+}
+
+export function useCountries() {
+  return useQuery({
+    queryKey: ["countries"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("players")
+        .select("country")
+        .limit(10000);
+      if (error) throw error;
+      
+      // Get unique countries and sort
+      const uniqueCountries = [...new Set(data.map(p => p.country))].sort();
+      return ["All Countries", ...uniqueCountries];
     },
   });
 }
@@ -184,15 +210,19 @@ export function useTopPlayers(format: string, stat: "runs" | "wickets" = "runs",
   });
 }
 
-export function useRecentMatches(limit = 10) {
+export function useRecentMatches(limit = 10, gender?: "all" | "male" | "female") {
   return useQuery({
-    queryKey: ["recent-matches", limit],
+    queryKey: ["recent-matches", limit, gender],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("matches")
         .select("*")
         .order("match_date", { ascending: false })
         .limit(limit);
+      if (gender && gender !== "all") {
+        q = q.eq("gender", gender);
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return data as any[];
     },

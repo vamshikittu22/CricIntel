@@ -16,7 +16,7 @@ import { useState, useRef, useCallback } from "react";
 
 export default function PlayerProfile() {
   const { id } = useParams<{ id: string }>();
-  const [format, setFormat] = useState<string>("T20I");
+  const [format, setFormat] = useState<string>("ODI");
   const [section, setSection] = useState<ProfileTab>("overview");
   const { data: player, isLoading: playerLoading } = usePlayer(id);
   const { data: summaries, isLoading: summaryLoading } = usePlayerSummary(id);

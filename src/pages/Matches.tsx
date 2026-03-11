@@ -1,27 +1,65 @@
 import { AppHeader } from "@/components/AppHeader";
-import { useRecentMatches } from "@/lib/hooks/usePlayers";
 import { getFlag } from "@/lib/countryFlags";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Calendar, MapPin, Trophy, Search } from "lucide-react";
+import { Calendar, MapPin, Trophy, Search, User, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useQuery } from "@tanstack/react-query";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
 
 const formatFilters = ["All", "ODI", "T20I", "Test", "IPL"];
+const genderFilters = [
+  { value: "all", label: "All", icon: null },
+  { value: "male", label: "Men", icon: User },
+  { value: "female", label: "Women", icon: UserCheck },
+];
 
 const Matches = () => {
   const [activeFormat, setActiveFormat] = useState("All");
+  const [activeGender, setActiveGender] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const { data: matches, isLoading } = useRecentMatches(100);
   const navigate = useNavigate();
+  
+  const { data: matches, isLoading } = useQuery({
+    queryKey: ["matches", activeFormat, activeGender],
+    queryFn: async () => {
+      let q = supabase.from("matches").select("*").order("match_date", { ascending: false });
+      if (activeFormat !== "All") {
+        q = q.eq("format", activeFormat);
+      }
+      if (activeGender !== "all") {
+        q = q.eq("gender", activeGender);
+      }
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    }
+  });
+  
+  const { data: countData } = useQuery({
+    queryKey: ["matches-count", activeFormat, activeGender],
+    queryFn: async () => {
+      let q = supabase.from("matches").select("*", { count: "exact", head: true });
+      if (activeFormat !== "All") {
+        q = q.eq("format", activeFormat);
+      }
+      if (activeGender !== "all") {
+        q = q.eq("gender", activeGender);
+      }
+      const { count } = await q;
+      return count || 0;
+    }
+  });
 
   const filteredMatches = matches?.filter((match) => {
-    const matchesFormat = activeFormat === "All" || match.format === activeFormat;
     const matchesSearch = !searchQuery || 
       match.team1?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       match.team2?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       match.venue?.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesFormat && matchesSearch;
+    return matchesSearch;
   }) ?? [];
 
   return (
@@ -37,6 +75,25 @@ const Matches = () => {
 
         {/* Filters */}
         <div className="flex flex-col gap-4 mb-6">
+          {/* Gender Tabs */}
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground mr-2 shrink-0">Gender:</span>
+            {genderFilters.map((g) => (
+              <button
+                key={g.value}
+                onClick={() => setActiveGender(g.value)}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap flex items-center gap-2 ${
+                  activeGender === g.value
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary border border-border"
+                }`}
+              >
+                {g.icon && <g.icon className="h-4 w-4" />}
+                {g.label}
+              </button>
+            ))}
+          </div>
+
           {/* Format Tabs */}
           <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
             <span className="text-[10px] uppercase font-bold text-muted-foreground mr-2 shrink-0">Format:</span>
@@ -69,7 +126,7 @@ const Matches = () => {
 
         {/* Matches Count */}
         <div className="mb-4 text-sm text-muted-foreground">
-          {isLoading ? "Loading..." : `${filteredMatches.length} matches found`}
+          {isLoading ? "Loading..." : `${countData} matches`}
         </div>
 
         {/* Matches List */}

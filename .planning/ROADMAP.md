@@ -47,6 +47,11 @@ CricIntel imports ball-by-ball cricket match data from Cricsheet JSON files and 
 ### Dependencies
 - Phase 1 complete (requires database schema and data)
 
+### Plans
+- [x] 02-01-PLAN.md — Add recent matches to home page
+- [x] 02-02-PLAN.md — Create global matches listing page
+- [x] 02-03-PLAN.md — Create match details with scorecard
+
 ### Success Criteria
 
 1. **Home page shows real data** — Featured players and recent matches load from Supabase, not mock data
@@ -94,7 +99,7 @@ CricIntel imports ball-by-ball cricket match data from Cricsheet JSON files and 
 | Phase | Status | Requirements |
 |-------|--------|--------------|
 | Phase 1: Data Foundation | Not Started | 18 |
-| Phase 2: Core Stats Display | Not Started | 14 |
+| Phase 2: Core Stats Display | Planned | 14 |
 | Phase 3: Player Comparison | Not Started | 4 |
 
 ---

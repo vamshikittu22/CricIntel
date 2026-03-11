@@ -9,6 +9,8 @@ import Compare from "./pages/Compare";
 import MatchHistory from "./pages/MatchHistory";
 import Matches from "./pages/Matches";
 import MatchDetails from "./pages/MatchDetails";
+import Teams from "./pages/Teams";
+import Players from "./pages/Players";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +26,8 @@ const App = () => (
           <Route path="/player/:id" element={<PlayerProfile />} />
           <Route path="/player/:id/history" element={<MatchHistory />} />
           <Route path="/compare" element={<Compare />} />
+          <Route path="/teams" element={<Teams />} />
+          <Route path="/players" element={<Players />} />
           <Route path="/matches" element={<Matches />} />
           <Route path="/match/:id" element={<MatchDetails />} />
           <Route path="*" element={<NotFound />} />
