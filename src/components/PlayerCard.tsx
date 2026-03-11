@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { getFlag } from "@/lib/countryFlags";
 import { motion } from "framer-motion";
 
@@ -9,18 +8,8 @@ interface PlayerCardProps {
     id: string;
     name: string;
     country: string;
-    role: string;
-    batting_style: string;
-    bowling_style: string;
   };
 }
-
-const roleColors: Record<string, string> = {
-  batter: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  bowler: "bg-destructive/15 text-destructive border-destructive/30",
-  "all-rounder": "bg-purple-500/15 text-purple-400 border-purple-500/30",
-  "wicket-keeper": "bg-success/15 text-success border-success/30",
-};
 
 export function PlayerCard({ player }: PlayerCardProps) {
   return (
@@ -37,14 +26,6 @@ export function PlayerCard({ player }: PlayerCardProps) {
                   {player.name}
                 </h3>
                 <p className="text-sm text-muted-foreground">{player.country}</p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <Badge variant="outline" className={`capitalize ${roleColors[player.role] || ""}`}>
-                    {player.role}
-                  </Badge>
-                  <Badge variant="outline" className="text-xs">
-                    {player.batting_style}
-                  </Badge>
-                </div>
               </div>
             </div>
           </CardContent>

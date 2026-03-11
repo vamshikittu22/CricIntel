@@ -1,26 +1,10 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Zap, Target, AlertTriangle, ShieldCheck, TrendingUp } from "lucide-react";
+import type { PlayerSummary } from "@/lib/hooks/usePlayers";
 
 interface OverviewProps {
-  battingStats?: {
-    matches?: number | null;
-    total_runs?: number | null;
-    average?: number | null;
-    strike_rate?: number | null;
-    fours?: number | null;
-    sixes?: number | null;
-    dots?: number | null;
-    balls_faced?: number | null;
-    dismissals?: number | null;
-  } | null;
-  bowlingStats?: {
-    wickets?: number | null;
-    economy?: number | null;
-    average?: number | null;
-    strike_rate?: number | null;
-    dots?: number | null;
-    balls_bowled?: number | null;
-  } | null;
+  battingStats?: PlayerSummary | null;
+  bowlingStats?: PlayerSummary | null;
   format: string;
 }
 
@@ -33,21 +17,21 @@ interface InsightCard {
 
 export function PlayerOverview({ battingStats, bowlingStats, format }: OverviewProps) {
   const bs = battingStats;
-  const bw = bowlingStats;
+  // For bowling we reuse the same summary row since it has both bat and bowl fields
+  const bw = bowlingStats || bs;
 
-  const balls = bs?.balls_faced || 0;
-  const dotPct = balls > 0 ? ((bs?.dots || 0) / balls * 100).toFixed(1) : "—";
-  const boundaryPct = balls > 0 ? (((bs?.fours || 0) + (bs?.sixes || 0)) / balls * 100).toFixed(1) : "—";
+  const balls = bs?.balls || 0;
+  const boundaryBalls = (bs?.fours || 0) + (bs?.sixes || 0);
+  const boundaryPct = balls > 0 ? ((boundaryBalls / balls) * 100).toFixed(1) : "—";
 
   const quickStats = [
-    { label: "Balls Faced", value: balls || "—" },
+    { label: "Innings", value: bs?.innings_bat ?? "—" },
     { label: "Fours", value: bs?.fours ?? "—" },
     { label: "Sixes", value: bs?.sixes ?? "—" },
-    { label: "Dot %", value: dotPct !== "—" ? `${dotPct}%` : "—" },
     { label: "Boundary %", value: boundaryPct !== "—" ? `${boundaryPct}%` : "—" },
+    { label: "Wickets", value: bw?.wickets ?? "—" },
   ];
 
-  // Generate insights
   const insights: InsightCard[] = [];
 
   if (bs && (bs.strike_rate || 0) > 130) {
@@ -59,7 +43,7 @@ export function PlayerOverview({ battingStats, bowlingStats, format }: OverviewP
     });
   }
 
-  if (bs && balls > 0 && (((bs.fours || 0) + (bs.sixes || 0)) / balls) > 0.15) {
+  if (bs && balls > 0 && boundaryBalls / balls > 0.15) {
     insights.push({
       icon: <Target className="h-5 w-5 text-primary" />,
       title: "Boundary Hitter",
@@ -68,29 +52,20 @@ export function PlayerOverview({ battingStats, bowlingStats, format }: OverviewP
     });
   }
 
-  if (bs && balls > 0 && ((bs.dots || 0) / balls) > 0.45) {
-    insights.push({
-      icon: <AlertTriangle className="h-5 w-5 text-warning" />,
-      title: "Dot Ball Pressure",
-      description: `${dotPct}% dots — could face pressure in limited-overs games.`,
-      borderColor: "border-l-warning",
-    });
-  }
-
-  if (bw && (bw.economy || 0) > 0 && (bw.economy || 0) < 7) {
+  if (bw && (bw.econ || 0) > 0 && (bw.econ || 0) < 7) {
     insights.push({
       icon: <ShieldCheck className="h-5 w-5 text-success" />,
       title: "Economical Control",
-      description: `Economy of ${bw.economy?.toFixed(2)} — restricts run flow effectively.`,
+      description: `Economy of ${bw.econ?.toFixed(2)} — restricts run flow effectively.`,
       borderColor: "border-l-success",
     });
   }
 
-  if (bw && (bw.strike_rate || 0) > 0 && (bw.strike_rate || 0) < 25) {
+  if (bw && (bw.bowl_strike_rate || 0) > 0 && (bw.bowl_strike_rate || 0) < 25) {
     insights.push({
       icon: <TrendingUp className="h-5 w-5 text-primary" />,
       title: "Strike Bowler",
-      description: `Bowling SR of ${bw.strike_rate?.toFixed(1)} — takes wickets at regular intervals.`,
+      description: `Bowling SR of ${bw.bowl_strike_rate?.toFixed(1)} — takes wickets at regular intervals.`,
       borderColor: "border-l-primary",
     });
   }
@@ -106,7 +81,6 @@ export function PlayerOverview({ battingStats, bowlingStats, format }: OverviewP
 
   return (
     <div className="space-y-6">
-      {/* Quick Stats Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {quickStats.map((s) => (
           <Card key={s.label} className="border-border">
@@ -118,7 +92,6 @@ export function PlayerOverview({ battingStats, bowlingStats, format }: OverviewP
         ))}
       </div>
 
-      {/* Insight Cards */}
       <div>
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Tactical Insights</h3>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

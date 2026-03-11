@@ -2,32 +2,31 @@ import { FormTracker } from "@/components/form/FormTracker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { motion } from "framer-motion";
+import type { PlayerMatchRow } from "@/lib/hooks/usePlayers";
 
 interface FormTabProps {
-  deliveries: any[];
-  playerRole: string;
+  recentMatches: PlayerMatchRow[];
   format: string;
   isLoading?: boolean;
 }
 
-export function FormTab({ deliveries, playerRole, format, isLoading }: FormTabProps) {
+export function FormTab({ recentMatches, format, isLoading }: FormTabProps) {
   if (isLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-40 rounded-lg" />
         <Skeleton className="h-72 rounded-lg" />
-        <Skeleton className="h-60 rounded-lg" />
       </div>
     );
   }
 
-  if (!deliveries?.length) {
+  if (!recentMatches?.length) {
     return <EmptyState message={`No match data available for ${format} format.`} />;
   }
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <FormTracker deliveries={deliveries} playerRole={playerRole} format={format} />
+      <FormTracker recentMatches={recentMatches} format={format} />
     </motion.div>
   );
 }

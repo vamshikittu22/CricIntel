@@ -7,10 +7,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { motion } from "framer-motion";
 import { AlertTriangle, Shield, TrendingDown, TrendingUp, Copy, Check, Crosshair } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import type { PlayerSummary } from "@/lib/hooks/usePlayers";
 
 interface WeaknessesTabProps {
-  deliveries: any[];
-  analytics: any;
+  stats: PlayerSummary | null;
   format: string;
   isLoading?: boolean;
 }
@@ -19,145 +19,84 @@ interface InsightRule {
   type: "weakness" | "strength";
   title: string;
   description: string;
-  confidence: number; // 0-100
+  confidence: number;
   howToBowl?: string;
   fieldSetup?: string;
 }
 
-function analyzePatterns(deliveries: any[], analytics: any): InsightRule[] {
+function analyzeFromSummary(stats: PlayerSummary | null): InsightRule[] {
   const rules: InsightRule[] = [];
-  if (!deliveries?.length) return rules;
+  if (!stats) return rules;
 
-  const pace = deliveries.filter((d) => d.bowler_type === "pace");
-  const spin = deliveries.filter((d) => d.bowler_type === "spin");
+  // SR-based insights
+  if ((stats.strike_rate || 0) > 140) {
+    rules.push({
+      type: "strength",
+      title: "Aggressive batting",
+      description: `Strike rate of ${stats.strike_rate?.toFixed(1)} indicates strong attacking intent.`,
+      confidence: 80,
+    });
+  } else if ((stats.strike_rate || 0) < 100 && stats.innings_bat > 5) {
+    rules.push({
+      type: "weakness",
+      title: "Low strike rate",
+      description: `Strike rate of ${stats.strike_rate?.toFixed(1)} may indicate difficulty rotating strike.`,
+      confidence: 65,
+      howToBowl: "Build dot ball pressure. Bowl tight lines and vary pace.",
+      fieldSetup: "Standard catching field with sweeper options.",
+    });
+  }
 
-  if (pace.length >= 10 && spin.length >= 10) {
-    const paceSR = (pace.reduce((s, d) => s + d.runs_batter, 0) / pace.length) * 100;
-    const spinSR = (spin.reduce((s, d) => s + d.runs_batter, 0) / spin.length) * 100;
-    const paceWk = pace.filter((d) => d.is_wicket).length;
-    const spinWk = spin.filter((d) => d.is_wicket).length;
-    const paceDR = paceWk / pace.length;
-    const spinDR = spinWk / spin.length;
-
-    if (spinDR > paceDR * 1.5 && spinSR < paceSR * 0.8) {
-      rules.push({
-        type: "weakness",
-        title: "Vulnerable to spin",
-        description: `SR of ${spinSR.toFixed(0)} vs spin compared to ${paceSR.toFixed(0)} vs pace. Dismissed ${spinWk} times in ${spin.length} balls.`,
-        confidence: spinDR > paceDR * 2 ? 85 : 65,
-        howToBowl: "Open with spin early. Use off-cutters and slower variations to exploit lack of foot movement.",
-        fieldSetup: "Slip, short leg, silly point for catches off bat-pad. Deep midwicket for the slog.",
-      });
-    } else if (paceDR > spinDR * 1.5 && paceSR < spinSR * 0.8) {
-      rules.push({
-        type: "weakness",
-        title: "Struggles against pace",
-        description: `SR of ${paceSR.toFixed(0)} vs pace compared to ${spinSR.toFixed(0)} vs spin. ${paceWk} dismissals.`,
-        confidence: paceDR > spinDR * 2 ? 85 : 65,
-        howToBowl: "Bowl short-of-length on off stump corridor. Mix in bouncers to test technique.",
-        fieldSetup: "Third slip, gully, short leg. Deep fine leg for the top-edge hook.",
-      });
-    }
-
-    if (paceSR > 140) {
+  // Boundary analysis
+  if (stats.balls > 0) {
+    const boundaryRate = ((stats.fours + stats.sixes) / stats.balls) * 100;
+    if (boundaryRate > 15) {
       rules.push({
         type: "strength",
-        title: "Dominant against pace",
-        description: `Exceptional SR of ${paceSR.toFixed(0)} against pace bowling.`,
-        confidence: paceSR > 160 ? 90 : 70,
-      });
-    }
-    if (spinSR > 140) {
-      rules.push({
-        type: "strength",
-        title: "Strong against spin",
-        description: `Impressive SR of ${spinSR.toFixed(0)} against spin.`,
-        confidence: spinSR > 160 ? 90 : 70,
+        title: "Boundary hitter",
+        description: `${boundaryRate.toFixed(1)}% boundary rate shows ability to find the fence.`,
+        confidence: 75,
       });
     }
   }
 
-  const lengths = ["yorker", "full", "good", "short", "bouncer"] as const;
-  for (const len of lengths) {
-    const balls = deliveries.filter((d) => d.ball_length === len);
-    if (balls.length < 5) continue;
-    const sr = (balls.reduce((s, d) => s + d.runs_batter, 0) / balls.length) * 100;
-    const wickets = balls.filter((d) => d.is_wicket).length;
-    const dismissRate = (wickets / balls.length) * 100;
-
-    if (dismissRate > 8) {
-      rules.push({
-        type: "weakness",
-        title: `Weak on ${len} length`,
-        description: `${dismissRate.toFixed(1)}% dismissal rate on ${len} length (${wickets}/${balls.length}).`,
-        confidence: dismissRate > 12 ? 85 : 60,
-        howToBowl: `Target ${len} length consistently. Vary pace slightly to induce false shots.`,
-        fieldSetup: len === "short" ? "Fine leg, deep square leg, hook/pull catching positions." : "Standard catching field around the bat.",
-      });
-    }
-    if (sr > 150 && dismissRate < 3) {
+  // Bowling analysis
+  if (stats.wickets > 0 && (stats.econ || 0) > 0) {
+    if ((stats.econ || 0) < 7) {
       rules.push({
         type: "strength",
-        title: `Punishes ${len} balls`,
-        description: `SR of ${sr.toFixed(0)} on ${len} length with minimal dismissal risk.`,
-        confidence: sr > 180 ? 90 : 70,
+        title: "Economical bowling",
+        description: `Economy of ${stats.econ?.toFixed(2)} restricts run flow.`,
+        confidence: 75,
       });
     }
   }
 
-  // Phase analysis
-  const pp = deliveries.filter((d) => d.over_number <= 6);
-  if (pp.length >= 10) {
-    const ppSR = (pp.reduce((s, d) => s + d.runs_batter, 0) / pp.length) * 100;
-    if (ppSR < 100) {
-      rules.push({
-        type: "weakness",
-        title: "Slow starter in powerplay",
-        description: `SR of only ${ppSR.toFixed(0)} in overs 1-6.`,
-        confidence: ppSR < 80 ? 80 : 55,
-        howToBowl: "Attack early with pace and swing. Build dot ball pressure in first 3 overs.",
-        fieldSetup: "Aggressive field in powerplay: 2 slips, gully, point. No protection on boundary.",
-      });
-    }
+  if (rules.length === 0) {
+    rules.push({
+      type: "strength",
+      title: "Balanced profile",
+      description: "No extreme patterns detected from summary data.",
+      confidence: 50,
+    });
   }
 
-  const death = deliveries.filter((d) => d.over_number >= 16);
-  if (death.length >= 10) {
-    const deathSR = (death.reduce((s, d) => s + d.runs_batter, 0) / death.length) * 100;
-    if (deathSR > 160) {
-      rules.push({
-        type: "strength",
-        title: "Lethal at the death",
-        description: `Explosive SR of ${deathSR.toFixed(0)} in death overs.`,
-        confidence: deathSR > 180 ? 90 : 72,
-      });
-    }
-  }
-
-  const confOrder = (c: number) => -c;
-  rules.sort((a, b) => {
-    if (a.type !== b.type) return a.type === "weakness" ? -1 : 1;
-    return confOrder(a.confidence) - confOrder(b.confidence);
-  });
   return rules;
 }
 
 function generateBriefing(rules: InsightRule[]): string {
   const weaknesses = rules.filter((r) => r.type === "weakness");
   if (weaknesses.length === 0) return "No significant weaknesses identified. Standard bowling plans recommended.";
-
   const setup = weaknesses[0]?.howToBowl || "Standard pace and length to build pressure.";
   const pressure = weaknesses.length > 1
     ? `Then exploit: ${weaknesses[1].title.toLowerCase()}. ${weaknesses[1].howToBowl || ""}`
     : "Maintain dot ball pressure and wait for the mistake.";
-  const dismissal = weaknesses[0]?.howToBowl || "Variation delivery when batter is under pressure.";
-
-  return `PHASE 1 — SETUP\n${setup}\n\nPHASE 2 — BUILD PRESSURE\n${pressure}\n\nPHASE 3 — DISMISSAL BALL\n${dismissal}\n\nFIELD: ${weaknesses[0]?.fieldSetup || "Standard catching field."}`;
+  return `PHASE 1 — SETUP\n${setup}\n\nPHASE 2 — BUILD PRESSURE\n${pressure}\n\nFIELD: ${weaknesses[0]?.fieldSetup || "Standard catching field."}`;
 }
 
-export function WeaknessesTab({ deliveries, analytics, format, isLoading }: WeaknessesTabProps) {
+export function WeaknessesTab({ stats, format, isLoading }: WeaknessesTabProps) {
   const [copied, setCopied] = useState(false);
-  const rules = useMemo(() => analyzePatterns(deliveries, analytics), [deliveries, analytics]);
+  const rules = useMemo(() => analyzeFromSummary(stats), [stats]);
   const briefing = useMemo(() => generateBriefing(rules), [rules]);
 
   if (isLoading) {
@@ -168,13 +107,12 @@ export function WeaknessesTab({ deliveries, analytics, format, isLoading }: Weak
             <Skeleton key={i} className="h-40 rounded-lg" />
           ))}
         </div>
-        <Skeleton className="h-48 rounded-lg" />
       </div>
     );
   }
 
-  if (rules.length === 0) {
-    return <EmptyState message={`Not enough data to generate tactical insights for ${format}.`} />;
+  if (!stats) {
+    return <EmptyState message={`Not enough data for ${format}.`} />;
   }
 
   const weaknesses = rules.filter((r) => r.type === "weakness");
@@ -187,41 +125,22 @@ export function WeaknessesTab({ deliveries, analytics, format, isLoading }: Weak
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const getConfColor = (c: number) => {
-    if (c >= 80) return "text-foreground";
-    if (c >= 60) return "text-warning";
-    return "text-muted-foreground";
-  };
-
   const renderCard = (rule: InsightRule, i: number) => {
     const isWeak = rule.type === "weakness";
     return (
-      <Card
-        key={i}
-        className={`border-l-4 ${isWeak ? "border-l-destructive bg-destructive/5" : "border-l-success bg-success/5"}`}
-      >
+      <Card key={i} className={`border-l-4 ${isWeak ? "border-l-destructive bg-destructive/5" : "border-l-success bg-success/5"}`}>
         <CardContent className="p-4 space-y-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">
-              {isWeak ? (
-                <TrendingDown className="h-4 w-4 text-destructive shrink-0" />
-              ) : (
-                <TrendingUp className="h-4 w-4 text-success shrink-0" />
-              )}
+              {isWeak ? <TrendingDown className="h-4 w-4 text-destructive shrink-0" /> : <TrendingUp className="h-4 w-4 text-success shrink-0" />}
               <span className="font-semibold text-sm">{rule.title}</span>
             </div>
-            <Badge
-              variant="outline"
-              className={isWeak ? "border-destructive/40 text-destructive" : "border-success/40 text-success"}
-            >
+            <Badge variant="outline" className={isWeak ? "border-destructive/40 text-destructive" : "border-success/40 text-success"}>
               {rule.confidence}%
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">{rule.description}</p>
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Confidence</p>
-            <Progress value={rule.confidence} className="h-1.5" />
-          </div>
+          <Progress value={rule.confidence} className="h-1.5" />
           {rule.howToBowl && (
             <div className="pt-1">
               <p className="text-xs font-medium text-primary mb-0.5">How to bowl</p>
@@ -241,7 +160,6 @@ export function WeaknessesTab({ deliveries, analytics, format, isLoading }: Weak
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
-      {/* Two columns: weaknesses + strengths */}
       <div className="grid gap-6 lg:grid-cols-2">
         {weaknesses.length > 0 && (
           <div className="space-y-3">
@@ -261,26 +179,20 @@ export function WeaknessesTab({ deliveries, analytics, format, isLoading }: Weak
         )}
       </div>
 
-      {/* Tactical Briefing Panel */}
       <Card className="border-primary/30 bg-primary/5">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg flex items-center gap-2">
               <Crosshair className="h-5 w-5 text-primary" /> Tactical Briefing
             </CardTitle>
-            <button
-              onClick={handleCopy}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-            >
+            <button onClick={handleCopy} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               {copied ? "Copied" : "Copy"}
             </button>
           </div>
         </CardHeader>
         <CardContent>
-          <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed">
-            {briefing}
-          </pre>
+          <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed">{briefing}</pre>
         </CardContent>
       </Card>
     </motion.div>
