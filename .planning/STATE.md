@@ -4,7 +4,7 @@
 
 **Core Value:** Enable cricket enthusiasts to analyze player performance across formats using real match data from Cricsheet.
 
-**Current Focus:** Roadmap creation — deriving phases from requirements
+**Current Focus:** Phase 2 execution - Core Stats Display
 
 ---
 
@@ -12,10 +12,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Phase** | Planning (Roadmap) |
-| **Plan** | Create roadmap from requirements |
+| **Phase** | 02-core-stats |
+| **Plan** | 01/03 complete |
 | **Status** | In Progress |
-| **Progress** | Roadmap created, awaiting approval |
+| **Progress** | ✅ 02-01 complete |
 
 ---
 
@@ -24,6 +24,7 @@
 - **v1 Requirements:** 36 total
 - **Phases:** 3 (Quick depth)
 - **Coverage:** 100% (36/36 mapped)
+- **Completed:** 01-01, 01-02, 02-01
 
 ---
 
@@ -53,15 +54,20 @@
 ## Session Continuity
 
 ### Last Action
-Created ROADMAP.md with 3-phase structure
+Completed 02-01-PLAN.md: Added recent matches section to home page
+
+### Completed Tasks
+- 01-01-PLAN.md: Data foundation - Supabase setup
+- 01-02-PLAN.md: ETL script implementation
+- 02-01-PLAN.md: Recent matches on home page
 
 ### Next Steps
-1. User reviews and approves roadmap
-2. Proceed to `/gsd-plan-phase 1` for Phase 1 execution
+1. Execute 02-02-PLAN.md: Create /matches route with global match listing
+2. Execute 02-03-PLAN.md: Create /match/:id route with scorecard
 
 ### Blocker
 None
 
 ---
 
-*Last updated: 2026-03-10*
+*Last updated: 2026-03-11*
