@@ -111,17 +111,43 @@ export function usePlayerRecentMatches(playerId: string | undefined, format?: st
     queryKey: ["player-recent-matches", playerId, format, limit],
     queryFn: async () => {
       let q = supabase
-        .from("player_recent_matches_view" as any)
-        .select("*")
+        .from("match_player_stats")
+        .select("*, matches!match_player_stats_match_id_fkey(format, match_date, venue, team1, team2, result, event_name)")
         .eq("player_id", playerId!)
-        .order("match_date", { ascending: false })
+        .order("match_id", { ascending: false })
         .limit(limit);
-      if (format) {
-        q = q.eq("format", format);
-      }
       const { data, error } = await q;
       if (error) throw error;
-      return data as PlayerMatchRow[];
+      // Flatten the join
+      const rows = (data as any[]).map((row) => ({
+        match_id: row.match_id,
+        player_id: row.player_id,
+        team: row.team,
+        is_batter: row.is_batter,
+        is_bowler: row.is_bowler,
+        bat_runs: row.bat_runs,
+        bat_balls: row.bat_balls,
+        bat_fours: row.bat_fours,
+        bat_sixes: row.bat_sixes,
+        bat_dismissal_kind: row.bat_dismissal_kind,
+        bat_not_out: row.bat_not_out,
+        bowl_overs: row.bowl_overs,
+        bowl_maidens: row.bowl_maidens,
+        bowl_runs: row.bowl_runs,
+        bowl_wickets: row.bowl_wickets,
+        bowl_econ: row.bowl_econ,
+        format: row.matches?.format ?? "",
+        match_date: row.matches?.match_date ?? "",
+        venue: row.matches?.venue ?? "",
+        team1: row.matches?.team1 ?? "",
+        team2: row.matches?.team2 ?? "",
+        result: row.matches?.result ?? null,
+        event_name: row.matches?.event_name ?? null,
+      })) as PlayerMatchRow[];
+      if (format) {
+        return rows.filter((r) => r.format === format);
+      }
+      return rows;
     },
     enabled: !!playerId,
   });
