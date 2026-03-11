@@ -27,9 +27,7 @@ export function SearchBar() {
   }, []);
 
   const { data: players } = usePlayerSearch(debouncedQuery);
-  const filtered = debouncedQuery.trim()
-    ? players?.slice(0, 8)
-    : [];
+  const filtered = debouncedQuery.trim() ? players?.slice(0, 8) : [];
 
   return (
     <div ref={ref} className="relative w-full max-w-2xl mx-auto">
@@ -67,9 +65,7 @@ export function SearchBar() {
                 <span className="text-xl">{getFlag(p.country)}</span>
                 <div>
                   <p className="font-medium text-card-foreground">{p.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {p.country} · {p.role}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{p.country}</p>
                 </div>
               </button>
             ))}

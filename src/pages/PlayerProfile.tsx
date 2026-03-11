@@ -1,6 +1,6 @@
 import { useParams } from "react-router-dom";
 import { AppHeader } from "@/components/AppHeader";
-import { usePlayer, useBattingAnalytics, useDeliveries, useBowlingAnalytics, useBowlingDeliveries } from "@/lib/hooks/usePlayers";
+import { usePlayer, usePlayerSummary, usePlayerRecentMatches } from "@/lib/hooks/usePlayers";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlayerProfileCard } from "@/components/profile/PlayerProfileCard";
 import { ProfileStickyTabs, ProfileTab } from "@/components/profile/ProfileStickyTabs";
@@ -12,23 +12,18 @@ import { FieldingTab } from "@/components/fielding/FieldingTab";
 import { FormTab } from "@/components/form/FormTab";
 import { EmptyState } from "@/components/ui/empty-state";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useRef, useCallback, useEffect } from "react";
-import { toast } from "@/hooks/use-toast";
+import { useState, useRef, useCallback } from "react";
 
 export default function PlayerProfile() {
   const { id } = useParams<{ id: string }>();
-  const [format, setFormat] = useState<string>("T20");
+  const [format, setFormat] = useState<string>("T20I");
   const [section, setSection] = useState<ProfileTab>("overview");
   const { data: player, isLoading: playerLoading } = usePlayer(id);
-  const { data: analytics, isLoading: battingLoading, isSuccess: battingSuccess, isError: battingError } = useBattingAnalytics(id, format);
-  const { data: deliveries, isLoading: deliveriesLoading } = useDeliveries(id, format);
-  const { data: bowlingAnalytics, isLoading: bowlingLoading } = useBowlingAnalytics(id, format);
-  const { data: bowlingDeliveries, isLoading: bowlDelLoading } = useBowlingDeliveries(id, format);
+  const { data: summaries, isLoading: summaryLoading } = usePlayerSummary(id);
+  const { data: recentMatches, isLoading: matchesLoading } = usePlayerRecentMatches(id, format);
 
-  const stats = analytics?.[0];
-  const bowlStats = bowlingAnalytics?.[0];
+  const stats = summaries?.find((s) => s.format === format) ?? null;
 
-  // Section refs for smooth scrolling
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const setRef = useCallback((key: string) => (el: HTMLDivElement | null) => {
     sectionRefs.current[key] = el;
@@ -37,23 +32,10 @@ export default function PlayerProfile() {
   const handleTabChange = (tab: ProfileTab) => {
     setSection(tab);
     const el = sectionRefs.current[tab];
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  // Toast on data load
-  useEffect(() => {
-    if (battingSuccess && stats) {
-      toast({ title: "Data loaded", description: `${format} stats loaded successfully.` });
-    }
-  }, [battingSuccess, format]);
-
-  useEffect(() => {
-    if (battingError) {
-      toast({ title: "Error", description: "Failed to load player data.", variant: "destructive" });
-    }
-  }, [battingError]);
+  const dataLoading = summaryLoading || matchesLoading;
 
   if (playerLoading) {
     return (
@@ -62,11 +44,6 @@ export default function PlayerProfile() {
         <div className="container mx-auto px-4 py-8 space-y-6">
           <Skeleton className="h-48 rounded-xl" />
           <Skeleton className="h-12 rounded-lg" />
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-20 rounded-lg" />
-            ))}
-          </div>
         </div>
       </div>
     );
@@ -83,21 +60,16 @@ export default function PlayerProfile() {
     );
   }
 
-  const dataLoading = battingLoading || deliveriesLoading || bowlingLoading || bowlDelLoading;
-
   return (
     <div className="min-h-screen bg-background">
       <AppHeader />
 
-      {/* Player Profile Card */}
       <div className="container mx-auto px-4 py-6">
         <PlayerProfileCard player={player} stats={stats} format={format} onFormatChange={setFormat} />
       </div>
 
-      {/* Sticky Tab Bar */}
       <ProfileStickyTabs activeTab={section} onTabChange={handleTabChange} />
 
-      {/* Content Sections */}
       <div className="container mx-auto px-4 py-8">
         <AnimatePresence mode="wait">
           <motion.div
@@ -109,36 +81,25 @@ export default function PlayerProfile() {
           >
             {section === "overview" && (
               <div ref={setRef("overview")}>
-                <PlayerOverview battingStats={stats} bowlingStats={bowlStats} format={format} />
+                <PlayerOverview battingStats={stats} format={format} />
               </div>
             )}
 
             {section === "batting" && (
               <div ref={setRef("batting")}>
-                <BattingDashboard stats={stats} deliveries={deliveries || []} format={format} isLoading={dataLoading} />
+                <BattingDashboard stats={stats} recentMatches={recentMatches || []} format={format} isLoading={dataLoading} />
               </div>
             )}
 
             {section === "bowling" && (
               <div ref={setRef("bowling")}>
-                <BowlingTab
-                  analytics={bowlStats}
-                  deliveries={bowlingDeliveries || []}
-                  format={format}
-                  playerRole={player.role}
-                  isLoading={dataLoading}
-                />
+                <BowlingTab stats={stats} recentMatches={recentMatches || []} format={format} isLoading={dataLoading} />
               </div>
             )}
 
             {section === "weaknesses" && (
               <div ref={setRef("weaknesses")}>
-                <WeaknessesTab
-                  deliveries={deliveries || []}
-                  analytics={stats}
-                  format={format}
-                  isLoading={dataLoading}
-                />
+                <WeaknessesTab stats={stats} format={format} isLoading={dataLoading} />
               </div>
             )}
 
@@ -150,12 +111,7 @@ export default function PlayerProfile() {
 
             {section === "form" && (
               <div ref={setRef("form")}>
-                <FormTab
-                  deliveries={player.role === "bowler" ? bowlingDeliveries || [] : deliveries || []}
-                  playerRole={player.role}
-                  format={format}
-                  isLoading={dataLoading}
-                />
+                <FormTab recentMatches={recentMatches || []} format={format} isLoading={dataLoading} />
               </div>
             )}
           </motion.div>
