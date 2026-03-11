@@ -134,8 +134,8 @@
 | DEV-04 | Phase 1 | Pending |
 
 **Coverage:**
-- v1 requirements: 35 total
-- Mapped to phases: 35
+- v1 requirements: 36 total
+- Mapped to phases: 36
 - Unmapped: 0 ✓
 
 ---
