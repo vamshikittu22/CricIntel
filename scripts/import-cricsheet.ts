@@ -122,9 +122,10 @@ function processMatch(match: CricsheetMatch, matchId: string) {
   };
 
   // Aggregate deliveries
-  const batting = new Map<string, BatAgg>();
-  const bowling = new Map<string, BowlAgg>();
+  const batting = new Map<string, BatAgg>(); // key: `${playerId}_${inningIdx}`
+  const bowling = new Map<string, BowlAgg>(); // key: `${playerId}_${inningIdx}`
   const playerTeam = new Map<string, string>();
+  const inningTeams = new Map<number, string>();
 
   for (const [team, names] of Object.entries(info.players)) {
     for (const name of names) {
@@ -133,7 +134,9 @@ function processMatch(match: CricsheetMatch, matchId: string) {
     }
   }
 
-  for (const innings of match.innings) {
+  for (const [inningIdx, innings] of match.innings.entries()) {
+    inningTeams.set(inningIdx + 1, innings.team);
+    
     for (const over of innings.overs) {
       for (const del of over.deliveries) {
         const batterId = nameToId[del.batter];
@@ -143,26 +146,30 @@ function processMatch(match: CricsheetMatch, matchId: string) {
         const isWide = !!del.extras?.wides;
         const isNoBall = !!del.extras?.noballs;
 
+        const batKey = `${batterId}_${inningIdx + 1}`;
+        const bowlKey = `${bowlerId}_${inningIdx + 1}`;
+
         // Batting
-        if (!batting.has(batterId)) {
-          batting.set(batterId, { runs: 0, balls: 0, fours: 0, sixes: 0, dismissalKind: null, notOut: true });
+        if (!batting.has(batKey)) {
+          batting.set(batKey, { runs: 0, balls: 0, fours: 0, sixes: 0, dismissalKind: null, notOut: true });
         }
-        const bat = batting.get(batterId)!;
+        const bat = batting.get(batKey)!;
         bat.runs += del.runs.batter;
-        if (!isWide) bat.balls++; // wides don't count as balls faced
+        if (!isWide && !isNoBall) bat.balls++; // only facing legal deliveries counts as balls faced generally, but in this specific parser logic earlier `isWide` was used
         if (del.runs.batter === 4) bat.fours++;
         if (del.runs.batter === 6) bat.sixes++;
 
-        // Bowling
-        if (!bowling.has(bowlerId)) {
-          bowling.set(bowlerId, { ballsBowled: 0, runsConceded: 0, wickets: 0, overSet: new Set(), maidenOvers: new Map() });
+        // Bowling 
+        if (!bowling.has(bowlKey)) {
+          bowling.set(bowlKey, { ballsBowled: 0, runsConceded: 0, wickets: 0, overSet: new Set(), maidenOvers: new Map() });
         }
-        const bowl = bowling.get(bowlerId)!;
+        const bowl = bowling.get(bowlKey)!;
         bowl.runsConceded += del.runs.total;
         if (!isWide && !isNoBall) {
           bowl.ballsBowled++;
           bowl.overSet.add(over.over);
         }
+
         // Track runs per over for maidens
         const overRuns = bowl.maidenOvers.get(over.over) ?? 0;
         bowl.maidenOvers.set(over.over, overRuns + del.runs.total);
@@ -171,9 +178,12 @@ function processMatch(match: CricsheetMatch, matchId: string) {
         if (del.wickets) {
           for (const w of del.wickets) {
             const outId = nameToId[w.player_out];
-            if (outId && batting.has(outId)) {
-              batting.get(outId)!.dismissalKind = w.kind;
-              batting.get(outId)!.notOut = false;
+            if (outId) {
+               const outKey = `${outId}_${inningIdx + 1}`;
+               if (batting.has(outKey)) {
+                 batting.get(outKey)!.dismissalKind = w.kind;
+                 batting.get(outKey)!.notOut = false;
+               }
             }
             // Credit bowler for non-run-out wickets
             if (w.kind !== "run out" && w.kind !== "retired hurt" && w.kind !== "retired not out" && w.kind !== "obstructing the field") {
@@ -187,11 +197,13 @@ function processMatch(match: CricsheetMatch, matchId: string) {
 
   // Build match_player_stats rows
   const statsRows: any[] = [];
-  const allPlayerIds = new Set([...batting.keys(), ...bowling.keys()]);
+  const allPlayerKeys = new Set([...batting.keys(), ...bowling.keys()]);
 
-  for (const pid of allPlayerIds) {
-    const bat = batting.get(pid);
-    const bowl = bowling.get(pid);
+  for (const key of allPlayerKeys) {
+    const [pid, inningStr] = key.split("_");
+    const inningNum = parseInt(inningStr, 10);
+    const bat = batting.get(key);
+    const bowl = bowling.get(key);
     const bowlOvers = bowl ? bowl.ballsBowled / 6 : 0;
     const bowlMaidens = bowl ? [...bowl.maidenOvers.values()].filter(r => r === 0).length : 0;
     const bowlEcon = bowl && bowlOvers > 0 ? +(bowl.runsConceded / bowlOvers).toFixed(2) : 0;
@@ -199,6 +211,7 @@ function processMatch(match: CricsheetMatch, matchId: string) {
     statsRows.push({
       match_id: matchId,
       player_id: pid,
+      inning: inningNum,
       team: playerTeam.get(pid) || "",
       is_batter: !!bat && bat.balls > 0,
       is_bowler: !!bowl && bowl.ballsBowled > 0,

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from "recharts";
-import { ChevronLeft, Filter, Search } from "lucide-react";
+import { ChevronLeft, Filter, Search, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -35,6 +35,7 @@ export default function MatchHistory() {
           matchId: m.match_id,
           date: m.match_date,
           year: m.match_date?.substring(0, 4) || "—",
+          event: m.event_name || "Bilateral / Regular Matches",
           opponent: `${m.team1} vs ${m.team2}`,
           venue: m.venue,
           runs: m.bat_runs,
@@ -49,9 +50,31 @@ export default function MatchHistory() {
       .filter(inn => 
         inn.opponent.toLowerCase().includes(searchTerm.toLowerCase()) || 
         inn.venue.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        inn.year.includes(searchTerm)
+        inn.year.includes(searchTerm) ||
+        inn.event.toLowerCase().includes(searchTerm.toLowerCase())
       );
   }, [recentMatches, searchTerm]);
+
+  const groupedInnings = useMemo(() => {
+    const grouped = new Map<string, Map<string, typeof innings[0][]>>();
+    innings.forEach(inn => {
+      if (!grouped.has(inn.year)) grouped.set(inn.year, new Map());
+      const yearMap = grouped.get(inn.year)!;
+      if (!yearMap.has(inn.event)) yearMap.set(inn.event, []);
+      yearMap.get(inn.event)!.push(inn);
+    });
+    
+    // Sort array descending dynamically
+    return Array.from(grouped.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([year, eventsMap]) => ({
+        year,
+        events: Array.from(eventsMap.entries()).map(([event, matches]) => ({
+          event,
+          matches
+        }))
+      }));
+  }, [innings]);
 
   const trendData = useMemo(() => {
     return [...innings].reverse().map((inn, i) => ({
@@ -179,73 +202,88 @@ export default function MatchHistory() {
               </CardContent>
             </Card>
 
-            {/* Innings Table */}
-            <Card className="border-border/50 shadow-sm">
-              <CardHeader className="py-4 px-6">
-                <CardTitle className="text-sm font-bold">Comprehensive Innings Log</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader className="bg-muted/30">
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="w-24 text-[10px] uppercase font-bold text-muted-foreground pl-6">Date</TableHead>
-                        <TableHead className="text-[10px] uppercase font-bold text-muted-foreground">Matchup</TableHead>
-                        <TableHead className="text-right text-[10px] uppercase font-bold text-muted-foreground">Runs</TableHead>
-                        <TableHead className="text-right text-[10px] uppercase font-bold text-muted-foreground">Stats</TableHead>
-                        <TableHead className="text-right text-[10px] uppercase font-bold text-muted-foreground">SR</TableHead>
-                        <TableHead className="pr-6 text-[10px] uppercase font-bold text-muted-foreground">Out Type</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {innings.map((inn, i) => (
-                        <TableRow key={`${inn.matchId}-${i}`} className="border-border/30 group">
-                          <TableCell className="text-xs whitespace-nowrap pl-6 py-4 font-mono text-muted-foreground">
-                            {inn.date}
-                          </TableCell>
-                          <TableCell className="py-4">
-                            <div className="flex flex-col">
-                              <span className="text-sm font-semibold">{inn.opponent}</span>
-                              <span className="text-[10px] text-muted-foreground">{inn.venue}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right py-4">
-                            <div className="flex items-center justify-end gap-1">
-                              <span className={`text-base font-black ${inn.runs >= 100 ? "text-purple-500" : inn.runs >= 50 ? "text-emerald-500" : ""}`}>
-                                {inn.runs}
-                              </span>
-                              {!inn.isOut && <span className="text-primary font-bold">*</span>}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right py-4">
-                            <div className="flex flex-col items-end gap-0.5">
-                              <span className="text-[11px] font-medium">{inn.balls} balls</span>
-                              <span className="text-[9px] text-muted-foreground">{inn.fours}✕4, {inn.sixes}✕6</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right py-4">
-                            <Badge variant="outline" className={`font-mono text-[10px] ${inn.sr >= 150 ? "border-primary text-primary" : ""}`}>
-                              {inn.sr}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="pr-6 py-4">
-                            {inn.dismissal ? (
-                              <span className="text-[10px] text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-md uppercase tracking-tighter">
-                                {inn.dismissal.replace('_', ' ')}
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-emerald-500 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md uppercase tracking-widest">
-                                NOT OUT
-                              </span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+            {/* Innings Tables Grouped by Year and Event */}
+            <div className="space-y-8">
+              {groupedInnings.map((yearGroup) => (
+                <div key={yearGroup.year} className="space-y-4">
+                  <h2 className="text-xl font-black bg-gradient-to-r from-primary to-primary/40 bg-clip-text text-transparent inline-block pb-1 border-b-2 border-primary/20">
+                    {yearGroup.year} Matches
+                  </h2>
+                  
+                  {yearGroup.events.map((eventGroup) => (
+                    <Card key={eventGroup.event} className="border-border/50 shadow-sm overflow-hidden">
+                      <CardHeader className="py-3 px-6 bg-muted/20 border-b border-border/50">
+                        <div className="flex items-center gap-2">
+                          <Trophy className="h-4 w-4 text-primary" />
+                          <CardTitle className="text-sm font-semibold tracking-tight">{eventGroup.event}</CardTitle>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader className="bg-transparent">
+                              <TableRow className="hover:bg-transparent">
+                                <TableHead className="w-24 text-[10px] uppercase font-bold text-muted-foreground pl-6">Date</TableHead>
+                                <TableHead className="text-[10px] uppercase font-bold text-muted-foreground">Matchup</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase font-bold text-muted-foreground">Runs</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase font-bold text-muted-foreground">Stats</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase font-bold text-muted-foreground">SR</TableHead>
+                                <TableHead className="pr-6 text-[10px] uppercase font-bold text-muted-foreground">Out Type</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {eventGroup.matches.map((inn, i) => (
+                                <TableRow key={`${inn.matchId}-${i}`} className="border-border/30 group">
+                                  <TableCell className="text-xs whitespace-nowrap pl-6 py-4 font-mono text-muted-foreground">
+                                    {inn.date}
+                                  </TableCell>
+                                  <TableCell className="py-4">
+                                    <div className="flex flex-col">
+                                      <span className="text-sm font-semibold">{inn.opponent}</span>
+                                      <span className="text-[10px] text-muted-foreground">{inn.venue}</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-right py-4">
+                                    <div className="flex items-center justify-end gap-1">
+                                      <span className={`text-base font-black ${inn.runs >= 100 ? "text-purple-500" : inn.runs >= 50 ? "text-emerald-500" : ""}`}>
+                                        {inn.runs}
+                                      </span>
+                                      {!inn.isOut && <span className="text-primary font-bold">*</span>}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-right py-4">
+                                    <div className="flex flex-col items-end gap-0.5">
+                                      <span className="text-[11px] font-medium">{inn.balls} balls</span>
+                                      <span className="text-[9px] text-muted-foreground">{inn.fours}✕4, {inn.sixes}✕6</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-right py-4">
+                                    <Badge variant="outline" className={`font-mono text-[10px] ${inn.sr >= 150 ? "border-primary text-primary" : ""}`}>
+                                      {inn.sr}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="pr-6 py-4">
+                                    {inn.dismissal ? (
+                                      <span className="text-[10px] text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-md uppercase tracking-tighter">
+                                        {inn.dismissal.replace('_', ' ')}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-emerald-500 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md uppercase tracking-widest">
+                                        NOT OUT
+                                      </span>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-32 border-2 border-dashed border-border rounded-2xl bg-muted/5">

@@ -24,6 +24,7 @@ interface PlayerMatchRow {
   player_id: string;
   player_name: string;
   team: string;
+  inning: number;
   is_batter: boolean;
   is_bowler: boolean;
   bat_runs: number;
@@ -71,6 +72,7 @@ const MatchDetails = () => {
       return (data as any[]).map((row) => ({
         player_id: row.player_id,
         player_name: row.players?.name ?? "Unknown",
+        inning: row.inning || 1,
         team: row.team,
         is_batter: row.is_batter,
         is_bowler: row.is_bowler,
@@ -116,22 +118,20 @@ const MatchDetails = () => {
     );
   }
 
-  // Split players by team
-  const team1Players = playerStats?.filter(p => p.team === match.team1) ?? [];
-  const team2Players = playerStats?.filter(p => p.team === match.team2) ?? [];
-
-  // Sort batting by runs (descending)
   const sortBatting = (a: PlayerMatchRow, b: PlayerMatchRow) => b.bat_runs - a.bat_runs;
-  const team1Batting = [...team1Players].filter(p => p.is_batter && p.bat_balls > 0).sort(sortBatting);
-  const team2Batting = [...team2Players].filter(p => p.is_batter && p.bat_balls > 0).sort(sortBatting);
-
-  // Sort bowling by wickets (descending), then economy (ascending)
   const sortBowling = (a: PlayerMatchRow, b: PlayerMatchRow) => {
     if (b.bowl_wickets !== a.bowl_wickets) return b.bowl_wickets - a.bowl_wickets;
     return a.bowl_econ - b.bowl_econ;
   };
-  const team1Bowling = [...team1Players].filter(p => p.is_bowler && p.bowl_overs > 0).sort(sortBowling);
-  const team2Bowling = [...team2Players].filter(p => p.is_bowler && p.bowl_overs > 0).sort(sortBowling);
+
+  // Group by inning
+  const inningsMap = new Map<number, PlayerMatchRow[]>();
+  playerStats?.forEach(p => {
+    if (!inningsMap.has(p.inning)) inningsMap.set(p.inning, []);
+    inningsMap.get(p.inning)!.push(p);
+  });
+
+  const matchInnings = Array.from(inningsMap.keys()).sort((a, b) => a - b);
 
   const formatDismissal = (player: PlayerMatchRow) => {
     if (player.bat_not_out) return "not out";
@@ -197,161 +197,98 @@ const MatchDetails = () => {
 
         {/* Scorecard */}
         <div className="grid gap-6">
-          {/* Team 1 Batting */}
-          {team1Batting.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <span>{getFlag(match.team1)}</span>
-                  {match.team1} - Batting
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Batsman</TableHead>
-                      <TableHead className="text-right">R</TableHead>
-                      <TableHead className="text-right">B</TableHead>
-                      <TableHead className="text-right">4s</TableHead>
-                      <TableHead className="text-right">6s</TableHead>
-                      <TableHead className="text-right">SR</TableHead>
-                      <TableHead className="text-right">Dismissal</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {team1Batting.map((player) => (
-                      <TableRow key={player.player_id}>
-                        <TableCell className="font-medium">{player.player_name}</TableCell>
-                        <TableCell className="text-right font-bold">{player.bat_runs}</TableCell>
-                        <TableCell className="text-right">{player.bat_balls}</TableCell>
-                        <TableCell className="text-right">{player.bat_fours}</TableCell>
-                        <TableCell className="text-right">{player.bat_sixes}</TableCell>
-                        <TableCell className="text-right">{calculateStrikeRate(player.bat_runs, player.bat_balls)}</TableCell>
-                        <TableCell className="text-right text-muted-foreground">{formatDismissal(player)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
+          {matchInnings.map((inning) => {
+            const inningPlayers = inningsMap.get(inning) ?? [];
+            const battingTeam = inningPlayers.find(p => p.is_batter)?.team || match.team1;
+            const bowlingTeam = inningPlayers.find(p => p.is_bowler)?.team || match.team2;
 
-          {/* Team 1 Bowling */}
-          {team1Bowling.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <span>{getFlag(match.team1)}</span>
-                  {match.team1} - Bowling
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Bowler</TableHead>
-                      <TableHead className="text-right">O</TableHead>
-                      <TableHead className="text-right">M</TableHead>
-                      <TableHead className="text-right">R</TableHead>
-                      <TableHead className="text-right">W</TableHead>
-                      <TableHead className="text-right">Econ</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {team1Bowling.map((player) => (
-                      <TableRow key={player.player_id}>
-                        <TableCell className="font-medium">{player.player_name}</TableCell>
-                        <TableCell className="text-right">{player.bowl_overs}</TableCell>
-                        <TableCell className="text-right">{player.bowl_maidens}</TableCell>
-                        <TableCell className="text-right">{player.bowl_runs}</TableCell>
-                        <TableCell className="text-right font-bold">{player.bowl_wickets}</TableCell>
-                        <TableCell className="text-right">{player.bowl_econ.toFixed(2)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
+            const battingStats = [...inningPlayers].filter(p => p.is_batter && p.bat_balls > 0).sort(sortBatting);
+            const bowlingStats = [...inningPlayers].filter(p => p.is_bowler && p.bowl_overs > 0).sort(sortBowling);
 
-          {/* Team 2 Batting */}
-          {team2Batting.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <span>{getFlag(match.team2)}</span>
-                  {match.team2} - Batting
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Batsman</TableHead>
-                      <TableHead className="text-right">R</TableHead>
-                      <TableHead className="text-right">B</TableHead>
-                      <TableHead className="text-right">4s</TableHead>
-                      <TableHead className="text-right">6s</TableHead>
-                      <TableHead className="text-right">SR</TableHead>
-                      <TableHead className="text-right">Dismissal</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {team2Batting.map((player) => (
-                      <TableRow key={player.player_id}>
-                        <TableCell className="font-medium">{player.player_name}</TableCell>
-                        <TableCell className="text-right font-bold">{player.bat_runs}</TableCell>
-                        <TableCell className="text-right">{player.bat_balls}</TableCell>
-                        <TableCell className="text-right">{player.bat_fours}</TableCell>
-                        <TableCell className="text-right">{player.bat_sixes}</TableCell>
-                        <TableCell className="text-right">{calculateStrikeRate(player.bat_runs, player.bat_balls)}</TableCell>
-                        <TableCell className="text-right text-muted-foreground">{formatDismissal(player)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
+            return (
+              <div key={inning} className="space-y-6">
+                <h3 className="text-xl font-bold border-b border-border pb-2 mt-4">
+                  Innings {inning} - {battingTeam} Batting
+                </h3>
+                
+                {battingStats.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <span>{getFlag(battingTeam)}</span>
+                        {battingTeam} - Batting
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Batsman</TableHead>
+                            <TableHead className="text-right">R</TableHead>
+                            <TableHead className="text-right">B</TableHead>
+                            <TableHead className="text-right">4s</TableHead>
+                            <TableHead className="text-right">6s</TableHead>
+                            <TableHead className="text-right">SR</TableHead>
+                            <TableHead className="text-right">Dismissal</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {battingStats.map((player) => (
+                            <TableRow key={player.player_id}>
+                              <TableCell className="font-medium">{player.player_name}</TableCell>
+                              <TableCell className="text-right font-bold">{player.bat_runs}</TableCell>
+                              <TableCell className="text-right">{player.bat_balls}</TableCell>
+                              <TableCell className="text-right">{player.bat_fours}</TableCell>
+                              <TableCell className="text-right">{player.bat_sixes}</TableCell>
+                              <TableCell className="text-right">{calculateStrikeRate(player.bat_runs, player.bat_balls)}</TableCell>
+                              <TableCell className="text-right text-muted-foreground">{formatDismissal(player)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                )}
 
-          {/* Team 2 Bowling */}
-          {team2Bowling.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <span>{getFlag(match.team2)}</span>
-                  {match.team2} - Bowling
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Bowler</TableHead>
-                      <TableHead className="text-right">O</TableHead>
-                      <TableHead className="text-right">M</TableHead>
-                      <TableHead className="text-right">R</TableHead>
-                      <TableHead className="text-right">W</TableHead>
-                      <TableHead className="text-right">Econ</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {team2Bowling.map((player) => (
-                      <TableRow key={player.player_id}>
-                        <TableCell className="font-medium">{player.player_name}</TableCell>
-                        <TableCell className="text-right">{player.bowl_overs}</TableCell>
-                        <TableCell className="text-right">{player.bowl_maidens}</TableCell>
-                        <TableCell className="text-right">{player.bowl_runs}</TableCell>
-                        <TableCell className="text-right font-bold">{player.bowl_wickets}</TableCell>
-                        <TableCell className="text-right">{player.bowl_econ.toFixed(2)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
+                {bowlingStats.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <span>{getFlag(bowlingTeam)}</span>
+                        {bowlingTeam} - Bowling
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Bowler</TableHead>
+                            <TableHead className="text-right">O</TableHead>
+                            <TableHead className="text-right">M</TableHead>
+                            <TableHead className="text-right">R</TableHead>
+                            <TableHead className="text-right">W</TableHead>
+                            <TableHead className="text-right">Econ</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {bowlingStats.map((player) => (
+                            <TableRow key={player.player_id}>
+                              <TableCell className="font-medium">{player.player_name}</TableCell>
+                              <TableCell className="text-right">{player.bowl_overs}</TableCell>
+                              <TableCell className="text-right">{player.bowl_maidens}</TableCell>
+                              <TableCell className="text-right">{player.bowl_runs}</TableCell>
+                              <TableCell className="text-right font-bold">{player.bowl_wickets}</TableCell>
+                              <TableCell className="text-right">{player.bowl_econ.toFixed(2)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            );
+          })}
         </div>
       </main>
     </div>

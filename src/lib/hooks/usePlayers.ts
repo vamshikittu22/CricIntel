@@ -34,6 +34,7 @@ export interface PlayerSummary {
 export interface PlayerMatchRow {
   match_id: string;
   player_id: string;
+  inning: number;
   team: string;
   is_batter: boolean;
   is_bowler: boolean;
@@ -125,6 +126,7 @@ export function usePlayerRecentMatches(playerId: string | undefined, format?: st
       const rows = (data as any[]).map((row) => ({
         match_id: row.match_id,
         player_id: row.player_id,
+        inning: row.inning,
         team: row.team,
         is_batter: row.is_batter,
         is_bowler: row.is_bowler,
@@ -210,9 +212,9 @@ export function useTopPlayers(format: string, stat: "runs" | "wickets" = "runs",
   });
 }
 
-export function useRecentMatches(limit = 10, gender?: "all" | "male" | "female") {
+export function useRecentMatches(limit = 10, gender?: "all" | "male" | "female", format?: string) {
   return useQuery({
-    queryKey: ["recent-matches", limit, gender],
+    queryKey: ["recent-matches", limit, gender, format],
     queryFn: async () => {
       let q = supabase
         .from("matches")
@@ -221,6 +223,9 @@ export function useRecentMatches(limit = 10, gender?: "all" | "male" | "female")
         .limit(limit);
       if (gender && gender !== "all") {
         q = q.eq("gender", gender);
+      }
+      if (format && format !== "All") {
+        q = q.eq("format", format);
       }
       const { data, error } = await q;
       if (error) throw error;

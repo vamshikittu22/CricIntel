@@ -1,6 +1,6 @@
 import { AppHeader } from "@/components/AppHeader";
 import { SearchBar } from "@/components/SearchBar";
-import { useRecentMatches } from "@/lib/hooks/usePlayers";
+import { useRecentMatches, useFeaturedPlayers, useCountries } from "@/lib/hooks/usePlayers";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -8,9 +8,8 @@ import { getFlag } from "@/lib/countryFlags";
 import { Clock, Trophy, MapPin, Calendar, TrendingUp, User, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
+import { supabase } from "@/integrations/supabase/client";
+import { safeStorage } from "@/lib/safeStorage";
 
 const genderFilters = [
   { value: "all", label: "All" },
@@ -22,15 +21,19 @@ const Index = () => {
   const navigate = useNavigate();
   const [recentSearches, setRecentSearches] = useState<{ id: string; name: string; country: string }[]>([]);
   const [genderFilter, setGenderFilter] = useState<"all" | "male" | "female">("all");
-  const { data: recentMatches } = useRecentMatches(10, genderFilter);
+  const [activeFormat, setActiveFormat] = useState("ODI");
+  const [activeCountry, setActiveCountry] = useState("All Countries");
+  
+  const { data: countries } = useCountries();
+  const { data: recentMatches } = useRecentMatches(10, genderFilter, activeFormat);
 
   const { data: topBatters } = useQuery({
-    queryKey: ["top-batters", genderFilter],
+    queryKey: ["top-batters", genderFilter, activeFormat],
     queryFn: async () => {
       let q = supabase
         .from("player_stats_summary")
-        .select("*, players(name, country, gender)")
-        .eq("format", "ODI");
+        .select("*, players!inner(name, country, gender)")
+        .eq("format", activeFormat);
       if (genderFilter !== "all") {
         q = q.eq("players.gender", genderFilter);
       }
@@ -40,12 +43,12 @@ const Index = () => {
   });
 
   const { data: topBowlers } = useQuery({
-    queryKey: ["top-bowlers", genderFilter],
+    queryKey: ["top-bowlers", genderFilter, activeFormat],
     queryFn: async () => {
       let q = supabase
         .from("player_stats_summary")
-        .select("*, players(name, country, gender)")
-        .eq("format", "ODI");
+        .select("*, players!inner(name, country, gender)")
+        .eq("format", activeFormat);
       if (genderFilter !== "all") {
         q = q.eq("players.gender", genderFilter);
       }
@@ -55,20 +58,22 @@ const Index = () => {
   });
 
   const { data: dateRange } = useQuery({
-    queryKey: ["date-range", genderFilter],
+    queryKey: ["date-range", genderFilter, activeFormat],
     queryFn: async () => {
-      let q = supabase.from("matches").select("match_date");
+      let q1 = supabase.from("matches").select("match_date").eq("format", activeFormat);
+      let q2 = supabase.from("matches").select("match_date").eq("format", activeFormat);
       if (genderFilter !== "all") {
-        q = q.eq("gender", genderFilter);
+        q1 = q1.eq("gender", genderFilter);
+        q2 = q2.eq("gender", genderFilter);
       }
-      const { data } = await q.order("match_date", { ascending: true }).limit(1);
-      const { data: data2 } = await q.order("match_date", { ascending: false }).limit(1);
+      const { data } = await q1.order("match_date", { ascending: true }).limit(1);
+      const { data: data2 } = await q2.order("match_date", { ascending: false }).limit(1);
       return { start: data?.[0]?.match_date, end: data2?.[0]?.match_date };
     }
   });
 
   useEffect(() => {
-    const stored = localStorage.getItem("cricintel_recent");
+    const stored = safeStorage.getItem("cricintel_recent");
     if (stored) {
       try { setRecentSearches(JSON.parse(stored)); } catch {}
     }
@@ -77,7 +82,7 @@ const Index = () => {
   const handlePlayerClick = (playerId: string, playerName: string, playerCountry: string) => {
     const updated = [{ id: playerId, name: playerName, country: playerCountry }, ...recentSearches.filter(r => r.id !== playerId)].slice(0, 10);
     setRecentSearches(updated);
-    localStorage.setItem("cricintel_recent", JSON.stringify(updated));
+    safeStorage.setItem("cricintel_recent", JSON.stringify(updated));
     navigate(`/player/${playerId}`);
   };
 
@@ -97,19 +102,24 @@ const Index = () => {
         </div>
         <div className={`overflow-hidden`}>
           <div className={`flex gap-3 ${scrollClass}`} style={{ width: 'calc(200px * 20)' }}>
-            {[...players, ...players].map((p: any, idx: number) => (
-              <button
-                key={`${p.player_id}-${idx}`}
-                onClick={() => handlePlayerClick(p.player_id, p.players?.name, p.players?.country)}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl border bg-card hover:border-primary/50 hover:shadow-lg transition-all shrink-0 min-w-[200px]"
-              >
-                <span className="text-2xl">{getFlag(p.players?.country)}</span>
-                <div className="text-left">
-                  <div className="text-sm font-bold truncate max-w-[120px]">{p.players?.name}</div>
-                  <div className="text-xs text-primary font-medium">{p[stat].toLocaleString()} {stat}</div>
-                </div>
-              </button>
-            ))}
+            {[...players, ...players].map((p: any, idx: number) => {
+              const playerData = p.players;
+              if (!playerData) return null;
+              
+              return (
+                <button
+                  key={`${p.player_id}-${idx}`}
+                  onClick={() => handlePlayerClick(p.player_id, playerData.name || "Player", playerData.country || "")}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl border bg-card hover:border-primary/50 hover:shadow-lg transition-all shrink-0 min-w-[200px]"
+                >
+                  <span className="text-2xl">{getFlag(playerData.country)}</span>
+                  <div className="text-left">
+                    <div className="text-sm font-bold truncate max-w-[120px]">{playerData.name || "Unknown Player"}</div>
+                    <div className="text-xs text-primary font-medium">{(p[stat] || 0).toLocaleString()} {stat}</div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -157,10 +167,27 @@ const Index = () => {
         </section>
       )}
 
-      {/* Gender Filter for Stats */}
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-center gap-2">
-          <span className="text-xs uppercase font-bold text-muted-foreground">Stats:</span>
+      {/* Format & Gender Filters */}
+      <div className="container mx-auto px-4 py-4 flex flex-col gap-4 items-center sm:flex-row sm:justify-center">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] uppercase font-bold text-muted-foreground mr-1">Format:</span>
+          {["Test", "ODI", "T20I"].map((f) => (
+            <button
+              key={f}
+              onClick={() => setActiveFormat(f)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                activeFormat === f
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary border border-border"
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] uppercase font-bold text-muted-foreground mr-1">Gender:</span>
           {genderFilters.map((g) => (
             <button
               key={g.value}
@@ -180,10 +207,11 @@ const Index = () => {
       </div>
 
       {/* Top Batters */}
-      {topBatters && topBatters.length > 0 && renderTopPlayers("Top Run Scorers (ODI)", topBatters, "runs", "left")}
+      {topBatters && topBatters.length > 0 && renderTopPlayers(`Top ${activeFormat} Batters`, topBatters, "runs", "left")}
 
       {/* Top Bowlers */}
-      {topBowlers && topBowlers.length > 0 && renderTopPlayers("Top Wicket Takers (ODI)", topBowlers, "wickets", "right")}
+      {topBowlers && topBowlers.length > 0 && renderTopPlayers(`Top ${activeFormat} Bowlers`, topBowlers, "wickets", "right")}
+
 
       {/* Recent Matches */}
       {recentMatches && recentMatches.length > 0 && (

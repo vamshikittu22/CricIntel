@@ -8,13 +8,14 @@ import {
 import { format as dateFmt } from "date-fns";
 import type { PlayerMatchRow } from "@/lib/hooks/usePlayers";
 
-interface FormTrackerProps {
+interface BowlingFormTrackerProps {
   recentMatches: PlayerMatchRow[];
   format: string;
 }
 
-function calcFormScore(runs: number, sr: number) {
-  return +Math.min(10, Math.max(1, (sr / 20 + runs / 15))).toFixed(1);
+function calcBowlingFormScore(wickets: number, econ: number) {
+  // Simple algorithm: Wickets are worth 2.5 pts, good economy gives up to 5 pts.
+  return +Math.min(10, Math.max(1, (wickets * 2.5) + (10 - econ) / 2)).toFixed(1);
 }
 
 function getFormLabel(score: number) {
@@ -23,23 +24,23 @@ function getFormLabel(score: number) {
   return { label: "Poor Form", color: "text-red-400" };
 }
 
-function getRunsBg(runs: number) {
-  if (runs >= 100) return "border-l-2 border-l-purple-500 bg-purple-500/5";
-  if (runs >= 50) return "border-l-2 border-l-emerald-500 bg-emerald-500/5";
-  if (runs < 20) return "border-l-2 border-l-red-500 bg-red-500/5";
+function getWicketsBg(wickets: number) {
+  if (wickets >= 5) return "border-l-2 border-l-purple-500 bg-purple-500/5";
+  if (wickets >= 3) return "border-l-2 border-l-emerald-500 bg-emerald-500/5";
+  if (wickets === 0) return "border-l-2 border-l-red-500 bg-red-500/5";
   return "";
 }
 
-const RunsTooltip = ({ active, payload }: any) => {
+const WicketsTooltip = ({ active, payload }: any) => {
   if (!active || !payload?.length) return null;
   const d = payload[0]?.payload;
   return (
     <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-xl space-y-1">
       <p className="font-semibold text-foreground">{d?.year}</p>
       <p className="text-blue-400">Matches: <span className="font-bold text-foreground">{d?.matches}</span></p>
-      <p className="text-emerald-400">Runs: <span className="font-bold text-foreground">{d?.runs}</span></p>
+      <p className="text-emerald-400">Wickets: <span className="font-bold text-foreground">{d?.wickets}</span></p>
       <p className="text-yellow-400">Average: <span className="font-bold text-foreground">{d?.avg ?? "—"}</span></p>
-      <p className="text-primary">SR: <span className="font-bold text-foreground">{d?.sr ?? "—"}</span></p>
+      <p className="text-primary">Econ: <span className="font-bold text-foreground">{d?.econ ?? "—"}</span></p>
     </div>
   );
 };
@@ -51,27 +52,27 @@ const MatchTooltip = ({ active, payload }: any) => {
     <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-xl space-y-1">
       <p className="font-semibold text-foreground">{d?.opponent}</p>
       <p className="text-muted-foreground">{d?.dateFormatted} · {d?.venue}</p>
-      <p className="text-blue-400">Runs: <span className="font-bold text-foreground">{d?.bat_runs}{d?.bat_not_out ? "*" : ""}</span></p>
-      <p className="text-emerald-400">SR: <span className="font-bold text-foreground">{d?.sr}</span></p>
+      <p className="text-emerald-400">Figures: <span className="font-bold text-foreground">{d?.bowl_wickets}/{d?.bowl_runs}</span> ({d?.bowl_overs} overs)</p>
+      <p className="text-blue-400">Econ: <span className="font-bold text-foreground">{d?.econ}</span></p>
     </div>
   );
 };
 
-export function FormTracker({ recentMatches, format }: FormTrackerProps) {
+export function BowlingFormTracker({ recentMatches, format }: BowlingFormTrackerProps) {
   const [selectedYear, setSelectedYear] = useState<string>("All");
 
-  const battingMatches = useMemo(() =>
+  const bowlingMatches = useMemo(() =>
     [...recentMatches]
-      .filter((m) => m.is_batter)
+      .filter((m) => m.is_bowler)
       .sort((a, b) => a.match_date.localeCompare(b.match_date))
       .map((m) => {
-        const sr = m.bat_balls > 0 ? +((m.bat_runs / m.bat_balls) * 100).toFixed(1) : 0;
+        const econ = m.bowl_overs > 0 ? +(m.bowl_runs / m.bowl_overs).toFixed(1) : 0;
         const year = m.match_date ? m.match_date.substring(0, 4) : "—";
         return {
           ...m,
-          sr,
+          econ,
           year,
-          formScore: calcFormScore(m.bat_runs, sr),
+          formScore: calcBowlingFormScore(m.bowl_wickets, econ),
           opponent: `${m.team1} vs ${m.team2}`,
           dateFormatted: m.match_date ? dateFmt(new Date(m.match_date), "d MMM yyyy") : "—",
         };
@@ -79,49 +80,53 @@ export function FormTracker({ recentMatches, format }: FormTrackerProps) {
 
   // Year-by-year summary
   const yearSummaries = useMemo(() => {
-    const map = new Map<string, { matches: number; runs: number; balls: number; notOuts: number; innings: number }>();
-    for (const m of battingMatches) {
+    const map = new Map<string, { matches: number; wickets: number; runs: number; overs: number }>();
+    for (const m of bowlingMatches) {
       const y = m.year;
-      if (!map.has(y)) map.set(y, { matches: 0, runs: 0, balls: 0, notOuts: 0, innings: 0 });
+      if (!map.has(y)) map.set(y, { matches: 0, wickets: 0, runs: 0, overs: 0 });
       const s = map.get(y)!;
       s.matches++;
-      s.innings++;
-      s.runs += m.bat_runs;
-      s.balls += m.bat_balls;
-      if (m.bat_not_out) s.notOuts++;
+      s.wickets += m.bowl_wickets;
+      s.runs += m.bowl_runs;
+      s.overs += m.bowl_overs;
     }
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([year, s]) => {
-        const dismissals = s.innings - s.notOuts;
-        const avg = dismissals > 0 ? +(s.runs / dismissals).toFixed(1) : null;
-        const sr = s.balls > 0 ? +(s.runs / s.balls * 100).toFixed(1) : null;
-        return { year, matches: s.matches, runs: s.runs, avg, sr };
+        const avg = s.wickets > 0 ? +(s.runs / s.wickets).toFixed(1) : null;
+        const econ = s.overs > 0 ? +(s.runs / s.overs).toFixed(1) : null;
+        return { year, matches: s.matches, wickets: s.wickets, runs: s.runs, overs: s.overs, avg, econ };
       });
-  }, [battingMatches]);
+  }, [bowlingMatches]);
 
   // Overall career summary
   const overallSummary = useMemo(() => {
-    const innings = battingMatches.length;
-    const runs = battingMatches.reduce((sum, m) => sum + m.bat_runs, 0);
-    const balls = battingMatches.reduce((sum, m) => sum + m.bat_balls, 0);
-    const notOuts = battingMatches.filter((m) => m.bat_not_out).length;
-    const dismissals = innings - notOuts;
-    const avg = dismissals > 0 ? +(runs / dismissals).toFixed(1) : null;
-    const sr = balls > 0 ? +(runs / balls * 100).toFixed(1) : null;
-    const fifties = battingMatches.filter((m) => m.bat_runs >= 50 && m.bat_runs < 100).length;
-    const hundreds = battingMatches.filter((m) => m.bat_runs >= 100).length;
-    const highScore = Math.max(0, ...battingMatches.map((m) => m.bat_runs));
-    return { innings, runs, notOuts, avg, sr, fifties, hundreds, highScore };
-  }, [battingMatches]);
+    const innings = bowlingMatches.length;
+    const wickets = bowlingMatches.reduce((sum, m) => sum + m.bowl_wickets, 0);
+    const runs = bowlingMatches.reduce((sum, m) => sum + m.bowl_runs, 0);
+    const overs = bowlingMatches.reduce((sum, m) => sum + m.bowl_overs, 0);
+    const maidens = bowlingMatches.reduce((sum, m) => sum + m.bowl_maidens, 0);
+    const avg = wickets > 0 ? +(runs / wickets).toFixed(1) : null;
+    const econ = overs > 0 ? +(runs / overs).toFixed(1) : null;
+    const sr = wickets > 0 ? +((overs * 6) / wickets).toFixed(1) : null;
+    const fourWPlus = bowlingMatches.filter((m) => m.bowl_wickets >= 4).length;
+    
+    let bestBowling = { w: 0, r: 0 };
+    for (const m of bowlingMatches) {
+      if (m.bowl_wickets > bestBowling.w || (m.bowl_wickets === bestBowling.w && m.bowl_runs < bestBowling.r)) {
+        bestBowling = { w: m.bowl_wickets, r: m.bowl_runs };
+      }
+    }
+    return { innings, wickets, avg, econ, sr, maidens, fourWPlus, bestBowling: `${bestBowling.w}/${bestBowling.r}` };
+  }, [bowlingMatches]);
 
   // Available years for filter
   const years = useMemo(() => ["All", ...yearSummaries.map((y) => y.year)], [yearSummaries]);
 
   // Filtered matches for table/chart
   const filteredMatches = useMemo(() =>
-    selectedYear === "All" ? battingMatches : battingMatches.filter((m) => m.year === selectedYear),
-    [battingMatches, selectedYear]);
+    selectedYear === "All" ? bowlingMatches : bowlingMatches.filter((m) => m.year === selectedYear),
+    [bowlingMatches, selectedYear]);
 
   // Recent 20 for the form timeline chart
   const recentForChart = filteredMatches.slice(-20);
@@ -131,11 +136,11 @@ export function FormTracker({ recentMatches, format }: FormTrackerProps) {
     ? getFormLabel(currentFormScore)
     : { label: "No Data", color: "text-muted-foreground" };
 
-  if (!battingMatches.length) {
+  if (!bowlingMatches.length) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
         <div className="text-4xl">🏏</div>
-        <p className="text-muted-foreground">No batting data available for {format}.</p>
+        <p className="text-muted-foreground">No bowling data available for {format}.</p>
       </div>
     );
   }
@@ -153,12 +158,12 @@ export function FormTracker({ recentMatches, format }: FormTrackerProps) {
           <div className="grid grid-cols-4 sm:grid-cols-7 gap-3 text-center">
             {[
               { label: "Innings", value: overallSummary.innings },
-              { label: "Runs", value: overallSummary.runs },
+              { label: "Wickets", value: overallSummary.wickets },
               { label: "Average", value: overallSummary.avg ?? "—" },
+              { label: "Economy", value: overallSummary.econ ?? "—" },
               { label: "Strike Rate", value: overallSummary.sr ?? "—" },
-              { label: "50s", value: overallSummary.fifties },
-              { label: "100s", value: overallSummary.hundreds },
-              { label: "High Score", value: overallSummary.highScore },
+              { label: "4+ Wickets", value: overallSummary.fourWPlus },
+              { label: "Best Bowling", value: overallSummary.bestBowling },
             ].map((s) => (
               <div key={s.label} className="rounded-lg bg-muted/40 p-3">
                 <p className="text-xl font-bold text-foreground">{s.value}</p>
@@ -213,13 +218,13 @@ export function FormTracker({ recentMatches, format }: FormTrackerProps) {
             <LineChart data={recentForChart} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="dateFormatted" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} interval="preserveStartEnd" />
-              <YAxis yAxisId="runs" orientation="left" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+              <YAxis yAxisId="wickets" orientation="left" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
               <YAxis yAxisId="form" orientation="right" domain={[0, 10]} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-              <ReferenceLine yAxisId="runs" y={50} stroke="hsl(var(--success))" strokeDasharray="4 4" strokeOpacity={0.4} />
+              <ReferenceLine yAxisId="wickets" y={3} stroke="hsl(var(--success))" strokeDasharray="4 4" strokeOpacity={0.4} />
               <Tooltip content={<MatchTooltip />} />
               <Legend />
-              <Line yAxisId="runs" type="monotone" dataKey="bat_runs" stroke="hsl(210,70%,60%)" strokeWidth={2} dot={{ r: 3, fill: "hsl(210,70%,60%)" }} name="Runs" />
-              <Line yAxisId="form" type="monotone" dataKey="formScore" stroke="hsl(174,72%,40%)" strokeWidth={2} dot={{ r: 3, fill: "hsl(174,72%,40%)" }} name="Form Score" />
+              <Line yAxisId="wickets" type="monotone" dataKey="bowl_wickets" stroke="hsl(174,72%,45%)" strokeWidth={2} dot={{ r: 3, fill: "hsl(174,72%,45%)" }} name="Wickets" />
+              <Line yAxisId="form" type="monotone" dataKey="formScore" stroke="hsl(210,70%,60%)" strokeWidth={2} dot={{ r: 3, fill: "hsl(210,70%,60%)" }} name="Form Score" />
             </LineChart>
           </ResponsiveContainer>
         </CardContent>
@@ -245,7 +250,7 @@ export function FormTracker({ recentMatches, format }: FormTrackerProps) {
       {/* ── Year-by-Year Bar Chart ── */}
       <Card className="border-border/50">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Year-by-Year Runs</CardTitle>
+          <CardTitle className="text-base">Year-by-Year Wickets</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={240}>
@@ -253,8 +258,8 @@ export function FormTracker({ recentMatches, format }: FormTrackerProps) {
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="year" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
               <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-              <Tooltip content={<RunsTooltip />} />
-              <Bar dataKey="runs" fill="hsl(210,70%,60%)" radius={[4, 4, 0, 0]} name="Runs" />
+              <Tooltip content={<WicketsTooltip />} />
+              <Bar dataKey="wickets" fill="hsl(174,72%,45%)" radius={[4, 4, 0, 0]} name="Wickets" />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
@@ -272,9 +277,9 @@ export function FormTracker({ recentMatches, format }: FormTrackerProps) {
                 <tr className="border-b border-border/50 text-muted-foreground text-xs uppercase tracking-wider">
                   <th className="text-left py-3 px-4 font-medium">Year</th>
                   <th className="text-right py-3 px-4 font-medium">Matches</th>
-                  <th className="text-right py-3 px-4 font-medium">Runs</th>
+                  <th className="text-right py-3 px-4 font-medium">Wickets</th>
                   <th className="text-right py-3 px-4 font-medium">Average</th>
-                  <th className="text-right py-3 px-4 font-medium">SR</th>
+                  <th className="text-right py-3 px-4 font-medium">Econ</th>
                 </tr>
               </thead>
               <tbody>
@@ -286,9 +291,9 @@ export function FormTracker({ recentMatches, format }: FormTrackerProps) {
                   >
                     <td className="py-3 px-4 font-semibold">{y.year}</td>
                     <td className="py-3 px-4 text-right text-muted-foreground">{y.matches}</td>
-                    <td className="py-3 px-4 text-right font-bold text-foreground">{y.runs}</td>
+                    <td className="py-3 px-4 text-right font-bold text-foreground">{y.wickets}</td>
                     <td className="py-3 px-4 text-right">{y.avg ?? "—"}</td>
-                    <td className="py-3 px-4 text-right">{y.sr ?? "—"}</td>
+                    <td className="py-3 px-4 text-right">{y.econ ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -312,30 +317,30 @@ export function FormTracker({ recentMatches, format }: FormTrackerProps) {
                 <tr className="border-b border-border/50 text-muted-foreground text-xs uppercase tracking-wider">
                   <th className="text-left py-3 px-4 font-medium">Date</th>
                   <th className="text-left py-3 px-4 font-medium">Match</th>
+                  <th className="text-right py-3 px-4 font-medium">Overs</th>
                   <th className="text-right py-3 px-4 font-medium">Runs</th>
-                  <th className="text-right py-3 px-4 font-medium">Balls</th>
-                  <th className="text-right py-3 px-4 font-medium">SR</th>
-                  <th className="text-right py-3 px-4 font-medium">4s</th>
-                  <th className="text-right py-3 px-4 font-medium">6s</th>
+                  <th className="text-right py-3 px-4 font-medium">Wickets</th>
+                  <th className="text-right py-3 px-4 font-medium">Maidens</th>
+                  <th className="text-right py-3 px-4 font-medium">Econ</th>
                   <th className="text-right py-3 px-4 font-medium">Form</th>
                 </tr>
               </thead>
               <tbody>
                 {[...filteredMatches].reverse().map((m, i) => (
-                  <tr key={i} className={`border-b border-border/30 transition-colors hover:bg-muted/30 ${getRunsBg(m.bat_runs)}`}>
+                  <tr key={i} className={`border-b border-border/30 transition-colors hover:bg-muted/30 ${getWicketsBg(m.bowl_wickets)}`}>
                     <td className="py-2.5 px-4 text-muted-foreground whitespace-nowrap text-xs">{m.dateFormatted}</td>
                     <td className="py-2.5 px-4 font-medium text-xs max-w-[180px] truncate">{m.opponent}</td>
+                    <td className="py-2.5 px-4 text-right text-muted-foreground">{m.bowl_overs}</td>
+                    <td className="py-2.5 px-4 text-right text-muted-foreground">{m.bowl_runs}</td>
                     <td className="py-2.5 px-4 text-right font-bold">
-                      {m.bat_runs >= 100
-                        ? <span className="text-purple-400">{m.bat_runs}{m.bat_not_out && "*"}</span>
-                        : m.bat_runs >= 50
-                        ? <span className="text-emerald-400">{m.bat_runs}{m.bat_not_out && "*"}</span>
-                        : <span>{m.bat_runs}{m.bat_not_out && "*"}</span>}
+                      {m.bowl_wickets >= 5
+                        ? <span className="text-purple-400">{m.bowl_wickets}</span>
+                        : m.bowl_wickets >= 3
+                        ? <span className="text-emerald-400">{m.bowl_wickets}</span>
+                        : <span>{m.bowl_wickets}</span>}
                     </td>
-                    <td className="py-2.5 px-4 text-right text-muted-foreground">{m.bat_balls}</td>
-                    <td className="py-2.5 px-4 text-right text-muted-foreground">{m.sr}</td>
-                    <td className="py-2.5 px-4 text-right text-muted-foreground">{m.bat_fours}</td>
-                    <td className="py-2.5 px-4 text-right text-muted-foreground">{m.bat_sixes}</td>
+                    <td className="py-2.5 px-4 text-right text-muted-foreground">{m.bowl_maidens}</td>
+                    <td className="py-2.5 px-4 text-right text-muted-foreground">{m.econ}</td>
                     <td className="py-2.5 px-4 text-right">
                       <span className={m.formScore >= 7 ? "text-emerald-400 font-bold" : m.formScore >= 5 ? "text-yellow-400 font-bold" : "text-red-400 font-bold"}>
                         {m.formScore}

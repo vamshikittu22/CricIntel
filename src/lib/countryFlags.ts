@@ -24,6 +24,7 @@ const countryCodes: Record<string, string> = {
   "United States of America": "USA",
 };
 
-export function getFlag(country: string): string {
+export function getFlag(country: string | undefined | null): string {
+  if (!country) return "🏳️";
   return countryCodes[country] || country.substring(0, 3).toUpperCase();
 }
