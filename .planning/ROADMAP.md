@@ -21,6 +21,10 @@ CricIntel imports ball-by-ball cricket match data from Cricsheet JSON files and 
 ### Dependencies
 - None (foundation phase)
 
+### Plans
+- [ ] 01-01-PLAN.md — Configure environment and run database migrations
+- [ ] 02-01-PLAN.md — Enhance ETL with phase stats, verify types
+
 ### Success Criteria
 
 1. **ETL script imports Cricsheet JSON files** — Running `npm run import:cricsheet` parses JSON from a configurable folder and populates the database
