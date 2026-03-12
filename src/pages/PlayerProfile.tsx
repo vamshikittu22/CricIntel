@@ -17,24 +17,17 @@ import { usePlayerTotals } from "@/lib/hooks/usePlayers";
 
 export default function PlayerProfile() {
   const { id } = useParams<{ id: string }>();
-  const [format, setFormat] = useState<string>("ODI");
+  const [format, setFormat] = useState<string>("All");
   const [section, setSection] = useState<ProfileTab>("overview");
   const { data: player, isLoading: playerLoading } = usePlayer(id);
   const { data: summaries, isLoading: summaryLoading } = usePlayerSummary(id);
   const { data: totals, isLoading: totalsLoading } = usePlayerTotals(id);
 
-  // Set default format to first available once player data loads
-  useEffect(() => {
-    if (player?.formats_played && player.formats_played.length > 0) {
-      if (!player.formats_played.includes(format)) {
-        setFormat(player.formats_played[0]);
-      }
-    }
-  }, [player]);
+  const { data: recentMatches, isLoading: matchesLoading } = usePlayerRecentMatches(id, format === "All" ? undefined : format);
 
-  const { data: recentMatches, isLoading: matchesLoading } = usePlayerRecentMatches(id, format);
-
-  const stats = summaries?.find((s) => s.format === format) ?? null;
+  const stats = format === "All" 
+    ? (totals as unknown as PlayerSummary) 
+    : (summaries?.find((s) => s.format === format) ?? null);
 
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const setRef = useCallback((key: string) => (el: HTMLDivElement | null) => {

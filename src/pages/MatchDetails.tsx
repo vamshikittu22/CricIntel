@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { useMemo } from "react";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 interface MatchInfo {
   id: string;
@@ -513,198 +514,200 @@ const MatchDetails = () => {
                 <TabsTrigger value="h2h" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-black px-6 py-2 rounded-xl h-9 text-[11px] uppercase tracking-tighter">H2H Analytics</TabsTrigger>
               </TabsList>
             </div>
-
             <AnimatePresence mode="wait">
               <TabsContent key="deployment-content" value="deployment" className="space-y-12 focus:outline-none">
-                <Tabs defaultValue={matchInnings[0].toString()} className="w-full">
-                  <div className="flex justify-center mb-10">
-                    <TabsList className="bg-secondary/20 p-1 rounded-2xl border border-border/50 h-11">
-                      {matchInnings.map((inning) => {
-                        const inningPlayers = inningsMap.get(inning) ?? [];
-                        const team = inningPlayers[0]?.team || (inning % 2 === 1 ? match.team1 : match.team2);
-                        const battingTeamShort = team.split(' ').map(w => w[0]).join('').substring(0, 3).toUpperCase();
-                        return (
-                          <TabsTrigger 
-                            key={inning} 
-                            value={inning.toString()}
-                            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-[0_0_15px_rgba(var(--primary-rgb),0.3)] font-black px-6 py-2 rounded-xl transition-all text-[11px] uppercase tracking-tighter h-9"
-                          >
-                            {getFlag(battingTeamShort)} Inning {inning}
-                          </TabsTrigger>
-                        );
-                      })}
-                    </TabsList>
-                  </div>
+                <ErrorBoundary name="Combat Scorecard">
+                  <Tabs defaultValue={matchInnings[0].toString()} className="w-full">
+                    <div className="flex justify-center mb-10">
+                      <TabsList className="bg-secondary/20 p-1 rounded-2xl border border-border/50 h-11">
+                        {matchInnings.map((inning) => {
+                          const inningPlayers = inningsMap.get(inning) ?? [];
+                          const team = inningPlayers[0]?.team || (inning % 2 === 1 ? match.team1 : match.team2);
+                          const battingTeamShort = team.split(' ').map(w => w[0]).join('').substring(0, 3).toUpperCase();
+                          return (
+                            <TabsTrigger 
+                              key={inning} 
+                              value={inning.toString()}
+                              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-[0_0_15px_rgba(var(--primary-rgb),0.3)] font-black px-6 py-2 rounded-xl transition-all text-[11px] uppercase tracking-tighter h-9"
+                            >
+                              {getFlag(battingTeamShort)} Inning {inning}
+                            </TabsTrigger>
+                          );
+                        })}
+                      </TabsList>
+                    </div>
 
-                  <AnimatePresence mode="wait">
-                  {matchInnings.map((inning) => {
-                    const inningPlayers = inningsMap.get(inning) ?? [];
-                    const battingPlayersInInning = inningPlayers.filter(p => p.is_batter && p.bat_balls > 0);
-                    const bowlingPlayersInInning = inningPlayers.filter(p => p.is_bowler && p.bowl_overs > 0);
-                    const battingTeam = battingPlayersInInning[0]?.team || (inning % 2 === 1 ? match.team1 : match.team2);
-                    
-                    const battingStats = [...battingPlayersInInning].sort(sortBatting);
-                    const bowlingStats = [...bowlingPlayersInInning].sort(sortBowling);
+                    <AnimatePresence mode="wait">
+                    {matchInnings.map((inning) => {
+                      const inningPlayers = inningsMap.get(inning) ?? [];
+                      const battingPlayersInInning = inningPlayers.filter(p => p.is_batter && p.bat_balls > 0);
+                      const bowlingPlayersInInning = inningPlayers.filter(p => p.is_bowler && p.bowl_overs > 0);
+                      const battingTeam = battingPlayersInInning[0]?.team || (inning % 2 === 1 ? match.team1 : match.team2);
+                      
+                      const battingStats = [...battingPlayersInInning].sort(sortBatting);
+                      const bowlingStats = [...bowlingPlayersInInning].sort(sortBowling);
 
-                    const totalFromBat = battingStats.reduce((sum, p) => sum + p.bat_runs, 0);
-                    const totalWickets = bowlingStats.reduce((sum, p) => sum + p.bowl_wickets, 0);
+                      const totalFromBat = battingStats.reduce((sum, p) => sum + p.bat_runs, 0);
+                      const totalWickets = bowlingStats.reduce((sum, p) => sum + p.bowl_wickets, 0);
 
-                    const getRoleBadge = (runs: number, sr: number) => {
-                        if (sr > 160 && runs < 30) return "Tactical Striker";
-                        if (sr > 140 && runs >= 30) return "Power Finisher";
-                        if (sr < 120 && runs >= 40) return "Technical Anchor";
-                        return "Operational Batter";
-                    };
+                      const getRoleBadge = (runs: number, sr: number) => {
+                          if (sr > 160 && runs < 30) return "Tactical Striker";
+                          if (sr > 140 && runs >= 30) return "Power Finisher";
+                          if (sr < 120 && runs >= 40) return "Technical Anchor";
+                          return "Operational Batter";
+                      };
 
-                    return (
-                      <TabsContent key={inning} value={inning.toString()} className="space-y-10 focus:outline-none">
-                        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                          {/* Professional Batting Matrix */}
-                          <Card className="lg:col-span-12 xl:col-span-8 border-none shadow-[0_0_50px_rgba(0,0,0,0.3)] overflow-hidden bg-card/80 backdrop-blur-3xl rounded-[3rem] border border-border/50">
-                            <div className="p-8 sm:p-10 border-b border-border/50 bg-gradient-to-r from-primary/10 to-transparent">
-                              <div className="flex items-center justify-between flex-wrap gap-6">
-                                <div className="flex items-center gap-6">
-                                  <span className="text-4xl sm:text-5xl font-black bg-secondary/40 w-16 h-16 sm:w-20 sm:h-20 rounded-[1.5rem] flex items-center justify-center shadow-inner border border-border/50 transition-transform hover:scale-105 duration-500">
-                                    {getFlag(battingTeam)}
-                                  </span>
-                                  <div>
-                                    <h4 className="text-2xl sm:text-3xl font-black tracking-tighter uppercase italic leading-none text-foreground">{battingTeam}</h4>
-                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.4em] mt-3 leading-none">Deployment Matrix — Inning {inning}</p>
+                      return (
+                        <TabsContent key={inning} value={inning.toString()} className="space-y-10 focus:outline-none">
+                          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                            {/* Professional Batting Matrix */}
+                            <Card className="lg:col-span-12 xl:col-span-8 border-none shadow-[0_0_50px_rgba(0,0,0,0.3)] overflow-hidden bg-card/80 backdrop-blur-3xl rounded-[3rem] border border-border/50">
+                              <div className="p-8 sm:p-10 border-b border-border/50 bg-gradient-to-r from-primary/10 to-transparent">
+                                <div className="flex items-center justify-between flex-wrap gap-6">
+                                  <div className="flex items-center gap-6">
+                                    <span className="text-4xl sm:text-5xl font-black bg-secondary/40 w-16 h-16 sm:w-20 sm:h-20 rounded-[1.5rem] flex items-center justify-center shadow-inner border border-border/50 transition-transform hover:scale-105 duration-500">
+                                      {getFlag(battingTeam)}
+                                    </span>
+                                    <div>
+                                      <h4 className="text-2xl sm:text-3xl font-black tracking-tighter uppercase italic leading-none text-foreground">{battingTeam}</h4>
+                                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.4em] mt-3 leading-none">Deployment Matrix — Inning {inning}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col items-end">
+                                    <div className="text-4xl sm:text-6xl font-black text-primary tracking-tighter leading-none">{totalFromBat} <span className="text-lg text-foreground/20 select-none">/</span> {totalWickets}</div>
+                                    <div className="text-[9px] text-muted-foreground uppercase font-black tracking-[0.3em] leading-none mt-4 text-right">Aggregate Combat Contribution</div>
                                   </div>
                                 </div>
-                                <div className="flex flex-col items-end">
-                                   <div className="text-4xl sm:text-6xl font-black text-primary tracking-tighter leading-none">{totalFromBat} <span className="text-lg text-foreground/20 select-none">/</span> {totalWickets}</div>
-                                   <div className="text-[9px] text-muted-foreground uppercase font-black tracking-[0.3em] leading-none mt-4 text-right">Aggregate Combat Contribution</div>
+                              </div>
+                              <div className="p-0 overflow-x-auto">
+                                <Table>
+                                  <TableHeader className="bg-secondary/20">
+                                    <TableRow className="hover:bg-transparent border-none">
+                                      <TableHead className="py-5 pl-10 text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground whitespace-nowrap">Entity</TableHead>
+                                      <TableHead className="text-right text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground">Efficiency</TableHead>
+                                      <TableHead className="text-right text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground">Density</TableHead>
+                                      <TableHead className="text-right text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground hidden sm:table-cell">Vectors</TableHead>
+                                      <TableHead className="text-right text-[10px] uppercase font-black tracking-[0.2em] text-primary whitespace-nowrap">SR Index</TableHead>
+                                      <TableHead className="text-right pr-10 text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground">Outcome</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {battingStats.length > 0 ? battingStats.map((player) => (
+                                      <TableRow key={player.player_id} className="group hover:bg-secondary/10 transition-colors border-border/50">
+                                        <TableCell className="py-6 pl-10">
+                                          <Link to={`/player/${player.player_id}`} className="block group/link">
+                                            <div className="flex flex-col">
+                                                <span className="font-black text-sm uppercase italic tracking-tight group-hover/link:text-primary transition-colors text-foreground">{player.player_name}</span>
+                                                <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mt-1.5">{getRoleBadge(player.bat_runs, parseFloat(calculateStrikeRate(player.bat_runs, player.bat_balls)))}</span>
+                                            </div>
+                                          </Link>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <span className="text-2xl font-black text-foreground tracking-tighter italic">{player.bat_runs}</span>
+                                            <span className="text-[9px] text-muted-foreground font-black ml-1 uppercase">Runs</span>
+                                        </TableCell>
+                                        <TableCell className="text-right text-muted-foreground font-black text-sm tabular-nums opacity-80">{player.bat_balls}</TableCell>
+                                        <TableCell className="text-right hidden sm:table-cell">
+                                            <div className="flex items-center justify-end gap-2 px-2">
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-[10px] font-black text-foreground/80 tabular-nums">{player.bat_fours}</span>
+                                                    <span className="text-[7px] font-bold text-muted-foreground uppercase">4s</span>
+                                                </div>
+                                                <div className="h-4 w-px bg-border/50 mx-1" />
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-[10px] font-black text-primary tabular-nums">{player.bat_sixes}</span>
+                                                    <span className="text-[7px] font-bold text-muted-foreground uppercase">6s</span>
+                                                </div>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <span className="text-sm font-black text-primary font-mono bg-primary/10 px-2 py-1 rounded-lg border border-primary/20">{calculateStrikeRate(player.bat_runs, player.bat_balls)}</span>
+                                        </TableCell>
+                                        <TableCell className="text-right pr-10">
+                                          {formatDismissal(player)}
+                                        </TableCell>
+                                      </TableRow>
+                                    )) : (
+                                      <TableRow>
+                                        <TableCell colSpan={6} className="py-20 text-center text-muted-foreground font-black uppercase tracking-widest text-xs opacity-30 italic">No Batting Deployment Recorded</TableCell>
+                                      </TableRow>
+                                    )}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </Card>
+
+                            {/* Bowling Analytics Overlay */}
+                            <Card className="lg:col-span-12 xl:col-span-4 border-none shadow-[0_0_50px_rgba(0,0,0,0.2)] bg-card/60 backdrop-blur-3xl rounded-[3rem] border border-border/50 flex flex-col h-full">
+                              <div className="p-8 sm:p-10 pb-6">
+                                  <h4 className="text-xl font-black italic tracking-tighter uppercase text-accent mb-2">Supression Analysis</h4>
+                                  <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.3em]">Operational Bowling Efficiency</p>
+                              </div>
+                              <div className="px-0 overflow-x-auto">
+                                <Table>
+                                  <TableHeader className="bg-secondary/10">
+                                    <TableRow className="hover:bg-transparent border-none">
+                                      <TableHead className="py-4 pl-8 text-[9px] uppercase font-black tracking-widest text-muted-foreground">Operator</TableHead>
+                                      <TableHead className="text-right text-[9px] uppercase font-black tracking-widest text-muted-foreground">O</TableHead>
+                                      <TableHead className="text-right text-[9px] uppercase font-black tracking-widest text-accent">W</TableHead>
+                                      <TableHead className="text-right pr-8 text-[9px] uppercase font-black tracking-widest text-muted-foreground">Eco</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {bowlingStats.length > 0 ? bowlingStats.map((player) => (
+                                      <TableRow key={player.player_id} className="group hover:bg-secondary/20 transition-colors border-border/50">
+                                        <TableCell className="py-4 pl-8">
+                                          <Link to={`/player/${player.player_id}`} className="block">
+                                            <span className="font-black text-xs uppercase tracking-tight text-foreground group-hover:text-accent transition-colors">{player.player_name}</span>
+                                          </Link>
+                                        </TableCell>
+                                        <TableCell className="text-right text-muted-foreground text-xs font-black tabular-nums">{player.bowl_overs}</TableCell>
+                                        <TableCell className="text-right">
+                                            <span className="text-xl font-black text-accent italic">{player.bowl_wickets}</span>
+                                        </TableCell>
+                                        <TableCell className="text-right pr-8">
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-sm font-black text-foreground/80 tabular-nums">{player.bowl_econ.toFixed(2)}</span>
+                                                <span className="text-[6px] font-black uppercase text-muted-foreground tracking-[0.2em]">Overs Runrate</span>
+                                            </div>
+                                        </TableCell>
+                                      </TableRow>
+                                    )) : (
+                                      <TableRow>
+                                        <TableCell colSpan={4} className="py-24 text-center">
+                                          <div className="flex flex-col items-center gap-3 opacity-20">
+                                            <Shield className="h-10 w-10 text-muted-foreground" />
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">No strike data</span>
+                                          </div>
+                                        </TableCell>
+                                      </TableRow>
+                                    )}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                              <div className="p-6 bg-secondary/10 border-t border-border/50 flex items-center justify-between mt-auto">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_10px_rgba(var(--primary-rgb),0.5)]" />
+                                    <span className="text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground/60">Active Surveillance</span>
+                                </div>
+                                <div className="flex gap-4">
+                                    <BarChart3 className="h-4 w-4 text-muted-foreground/30" />
+                                    <Shield className="h-4 w-4 text-muted-foreground/30" />
                                 </div>
                               </div>
-                            </div>
-                            <div className="p-0 overflow-x-auto">
-                              <Table>
-                                <TableHeader className="bg-secondary/20">
-                                  <TableRow className="hover:bg-transparent border-none">
-                                    <TableHead className="py-5 pl-10 text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground whitespace-nowrap">Entity</TableHead>
-                                    <TableHead className="text-right text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground">Efficiency</TableHead>
-                                    <TableHead className="text-right text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground">Density</TableHead>
-                                    <TableHead className="text-right text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground hidden sm:table-cell">Vectors</TableHead>
-                                    <TableHead className="text-right text-[10px] uppercase font-black tracking-[0.2em] text-primary whitespace-nowrap">SR Index</TableHead>
-                                    <TableHead className="text-right pr-10 text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground">Outcome</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {battingStats.length > 0 ? battingStats.map((player) => (
-                                    <TableRow key={player.player_id} className="group hover:bg-secondary/10 transition-colors border-border/50">
-                                      <TableCell className="py-6 pl-10">
-                                        <Link to={`/player/${player.player_id}`} className="block group/link">
-                                          <div className="flex flex-col">
-                                              <span className="font-black text-sm uppercase italic tracking-tight group-hover/link:text-primary transition-colors text-foreground">{player.player_name}</span>
-                                              <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mt-1.5">{getRoleBadge(player.bat_runs, parseFloat(calculateStrikeRate(player.bat_runs, player.bat_balls)))}</span>
-                                          </div>
-                                        </Link>
-                                      </TableCell>
-                                      <TableCell className="text-right">
-                                          <span className="text-2xl font-black text-foreground tracking-tighter italic">{player.bat_runs}</span>
-                                          <span className="text-[9px] text-muted-foreground font-black ml-1 uppercase">Runs</span>
-                                      </TableCell>
-                                      <TableCell className="text-right text-muted-foreground font-black text-sm tabular-nums opacity-80">{player.bat_balls}</TableCell>
-                                      <TableCell className="text-right hidden sm:table-cell">
-                                          <div className="flex items-center justify-end gap-2 px-2">
-                                              <div className="flex flex-col items-center">
-                                                  <span className="text-[10px] font-black text-foreground/80 tabular-nums">{player.bat_fours}</span>
-                                                  <span className="text-[7px] font-bold text-muted-foreground uppercase">4s</span>
-                                              </div>
-                                              <div className="h-4 w-px bg-border/50 mx-1" />
-                                              <div className="flex flex-col items-center">
-                                                  <span className="text-[10px] font-black text-primary tabular-nums">{player.bat_sixes}</span>
-                                                  <span className="text-[7px] font-bold text-muted-foreground uppercase">6s</span>
-                                              </div>
-                                          </div>
-                                      </TableCell>
-                                      <TableCell className="text-right">
-                                          <span className="text-sm font-black text-primary font-mono bg-primary/10 px-2 py-1 rounded-lg border border-primary/20">{calculateStrikeRate(player.bat_runs, player.bat_balls)}</span>
-                                      </TableCell>
-                                      <TableCell className="text-right pr-10">
-                                        {formatDismissal(player)}
-                                      </TableCell>
-                                    </TableRow>
-                                  )) : (
-                                    <TableRow>
-                                      <TableCell colSpan={6} className="py-20 text-center text-muted-foreground font-black uppercase tracking-widest text-xs opacity-30 italic">No Batting Deployment Recorded</TableCell>
-                                    </TableRow>
-                                  )}
-                                </TableBody>
-                              </Table>
-                            </div>
-                          </Card>
-
-                          {/* Bowling Analytics Overlay */}
-                          <Card className="lg:col-span-12 xl:col-span-4 border-none shadow-[0_0_50px_rgba(0,0,0,0.2)] bg-card/60 backdrop-blur-3xl rounded-[3rem] border border-border/50 flex flex-col h-full">
-                            <div className="p-8 sm:p-10 pb-6">
-                                <h4 className="text-xl font-black italic tracking-tighter uppercase text-accent mb-2">Supression Analysis</h4>
-                                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.3em]">Operational Bowling Efficiency</p>
-                            </div>
-                            <div className="px-0 overflow-x-auto">
-                              <Table>
-                                <TableHeader className="bg-secondary/10">
-                                  <TableRow className="hover:bg-transparent border-none">
-                                    <TableHead className="py-4 pl-8 text-[9px] uppercase font-black tracking-widest text-muted-foreground">Operator</TableHead>
-                                    <TableHead className="text-right text-[9px] uppercase font-black tracking-widest text-muted-foreground">O</TableHead>
-                                    <TableHead className="text-right text-[9px] uppercase font-black tracking-widest text-accent">W</TableHead>
-                                    <TableHead className="text-right pr-8 text-[9px] uppercase font-black tracking-widest text-muted-foreground">Eco</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {bowlingStats.length > 0 ? bowlingStats.map((player) => (
-                                    <TableRow key={player.player_id} className="group hover:bg-secondary/20 transition-colors border-border/50">
-                                      <TableCell className="py-4 pl-8">
-                                        <Link to={`/player/${player.player_id}`} className="block">
-                                          <span className="font-black text-xs uppercase tracking-tight text-foreground group-hover:text-accent transition-colors">{player.player_name}</span>
-                                        </Link>
-                                      </TableCell>
-                                      <TableCell className="text-right text-muted-foreground text-xs font-black tabular-nums">{player.bowl_overs}</TableCell>
-                                      <TableCell className="text-right">
-                                          <span className="text-xl font-black text-accent italic">{player.bowl_wickets}</span>
-                                      </TableCell>
-                                      <TableCell className="text-right pr-8">
-                                          <div className="flex flex-col items-end">
-                                              <span className="text-sm font-black text-foreground/80 tabular-nums">{player.bowl_econ.toFixed(2)}</span>
-                                              <span className="text-[6px] font-black uppercase text-muted-foreground tracking-[0.2em]">Overs Runrate</span>
-                                          </div>
-                                      </TableCell>
-                                    </TableRow>
-                                  )) : (
-                                    <TableRow>
-                                      <TableCell colSpan={4} className="py-24 text-center">
-                                        <div className="flex flex-col items-center gap-3 opacity-20">
-                                          <Shield className="h-10 w-10 text-muted-foreground" />
-                                          <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">No strike data</span>
-                                        </div>
-                                      </TableCell>
-                                    </TableRow>
-                                  )}
-                                </TableBody>
-                              </Table>
-                            </div>
-                            <div className="p-6 bg-secondary/10 border-t border-border/50 flex items-center justify-between mt-auto">
-                               <div className="flex items-center gap-3">
-                                  <div className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_10px_rgba(var(--primary-rgb),0.5)]" />
-                                  <span className="text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground/60">Active Surveillance</span>
-                               </div>
-                               <div className="flex gap-4">
-                                  <BarChart3 className="h-4 w-4 text-muted-foreground/30" />
-                                  <Shield className="h-4 w-4 text-muted-foreground/30" />
-                               </div>
-                            </div>
-                          </Card>
-                        </motion.div>
-                      </TabsContent>
-                    );
-                  })}
-                  </AnimatePresence>
-                </Tabs>
+                            </Card>
+                          </motion.div>
+                        </TabsContent>
+                      );
+                    })}
+                    </AnimatePresence>
+                  </Tabs>
+                </ErrorBoundary>
               </TabsContent>
 
               <TabsContent key="leaders-content" value="leaders" className="space-y-8 focus:outline-none">
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <ErrorBoundary name="Match Leadership">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {/* Top Batters */}
                     <Card className="glass rounded-[2.5rem] p-6 border-border/50 overflow-hidden relative group">
                       <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-30 transition-opacity">
@@ -807,10 +810,12 @@ const MatchDetails = () => {
                           {matchLeaders?.boundaryKings.length === 0 && <p className="text-[10px] text-muted-foreground uppercase font-black text-center py-4 opacity-30 tracking-widest">No Data</p>}
                       </div>
                     </Card>
-                 </div>
+                  </div>
+                </ErrorBoundary>
               </TabsContent>
 
               <TabsContent key="h2h-content" value="h2h" className="space-y-8 focus:outline-none">
+                <ErrorBoundary name="Combat Intelligence (H2H)">
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                       {/* H2H Win Split */}
                       <div className="lg:col-span-4 space-y-8">
@@ -898,6 +903,7 @@ const MatchDetails = () => {
                           </div>
                       </Card>
                   </div>
+                </ErrorBoundary>
               </TabsContent>
             </AnimatePresence>
           </Tabs>

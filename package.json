@@ -1,5 +1,6 @@
 {
-  "name": "vite_react_shadcn_ts",
+  "name": "cricintel-batsman-boss",
+  "description": "CricIntel: The Professional Cricket Analytics Platform.",
   "private": true,
   "version": "0.0.0",
   "type": "module",

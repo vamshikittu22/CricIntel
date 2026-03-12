@@ -14,15 +14,25 @@ interface FormTrackerProps {
 }
 
 function calcFormScore(runs: number, sr: number, notOut: boolean) {
+  // Base score from volume
   let score = runs / 10.0;
+  
+  // Tactical Bonuses (Milestones)
   if (runs >= 100) score += 5.0;
   else if (runs >= 50) score += 3.0;
   else if (runs >= 30) score += 1.5;
+  
+  // Strike Rate Efficiency Index
   if (sr > 180) score += 4.0;
   else if (sr > 140) score += 2.0;
-  else if (sr < 100 && runs > 0) score -= 2.0;
+  else if (sr > 0 && sr < 100 && runs > 0) score -= 2.0;
+  
+  // Resilience Quotient (Not Out Bonus)
   if (notOut && runs > 15) score += 1.5;
-  return +Math.min(10, Math.max(1, score)).toFixed(1);
+  
+  // Final Evaluation - Clamp to normalized [1, 10] range
+  const normalizedScore = Math.min(10, Math.max(1, score));
+  return +normalizedScore.toFixed(1);
 }
 
 function getFormLabel(score: number) {
@@ -129,7 +139,7 @@ export function FormTracker({ recentMatches, format }: FormTrackerProps) {
            </div>
            
            <div className="absolute top-0 right-0 p-8 flex flex-col items-end opacity-20 pointer-events-none">
-              <Trophy className="h-24 w-24 text-white" />
+              <Trophy className="h-24 w-24 text-foreground" />
            </div>
         </div>
 
@@ -176,13 +186,13 @@ export function FormTracker({ recentMatches, format }: FormTrackerProps) {
              <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em]">Sustained Performance History</h3>
           </div>
           
-          <div className="flex gap-2 bg-black/20 p-1.5 rounded-xl border border-white/5 max-w-[400px] overflow-x-auto no-scrollbar">
+          <div className="flex gap-2 bg-secondary/20 p-1.5 rounded-xl border border-border/50 max-w-[400px] overflow-x-auto no-scrollbar">
             {years.map((y) => (
               <button
                 key={y}
                 onClick={() => setSelectedYear(y)}
                 className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
-                  selectedYear === y ? "bg-primary text-white" : "text-muted-foreground hover:text-white"
+                  selectedYear === y ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "text-muted-foreground hover:text-foreground hover:bg-secondary/40"
                 }`}
               >
                 {y}
@@ -201,13 +211,13 @@ export function FormTracker({ recentMatches, format }: FormTrackerProps) {
                 if (!payload?.length) return null;
                 const d = payload[0].payload;
                 return (
-                  <div className="rounded-2xl border border-white/10 bg-black/80 backdrop-blur-xl px-4 py-3 text-xs shadow-2xl ring-1 ring-white/10 min-w-[200px]">
-                    <p className="font-black text-white/50 uppercase tracking-widest text-[10px] mb-2">{d.opponent}</p>
+                  <div className="rounded-2xl border border-border/50 bg-card/90 backdrop-blur-xl px-4 py-3 text-xs shadow-2xl border border-border/50 min-w-[200px]">
+                    <p className="font-black text-muted-foreground uppercase tracking-widest text-[10px] mb-2">{d.opponent}</p>
                     <div className="flex items-center justify-between mb-2">
-                       <span className="text-2xl font-black">{d.bat_runs}{d.bat_not_out ? '*' : ''}</span>
+                       <span className="text-2xl font-black text-foreground">{d.bat_runs}{d.bat_not_out ? '*' : ''}</span>
                        <span className={`text-base font-black ${getFormLabel(d.formScore).color}`}>{d.formScore} IDx</span>
                     </div>
-                    <div className="flex justify-between text-[10px] font-black uppercase text-muted-foreground pt-2 border-t border-white/5">
+                    <div className="flex justify-between text-[10px] font-black uppercase text-muted-foreground pt-2 border-t border-border/50">
                        <span>SR: {d.sr}</span>
                        <span>DATE: {d.dateFormatted}</span>
                     </div>
@@ -253,25 +263,25 @@ export function FormTracker({ recentMatches, format }: FormTrackerProps) {
             </div>
             <div className="overflow-x-auto -mx-8 max-h-[400px] no-scrollbar overflow-y-auto">
                <table className="w-full">
-                  <thead className="bg-white/5 text-[10px] font-black uppercase tracking-widest text-muted-foreground sticky top-0 z-10">
+                  <thead className="bg-secondary/40 text-[10px] font-black uppercase tracking-widest text-muted-foreground sticky top-0 z-10">
                      <tr>
                         <th className="px-8 py-4 text-left">Match Details</th>
                         <th className="px-8 py-4 text-right">Runs</th>
                         <th className="px-8 py-4 text-right">Momentum</th>
                      </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/5">
+                  <tbody className="divide-y divide-border/20">
                      {[...filteredMatches].reverse().map((m, i) => (
-                        <tr key={i} className="hover:bg-white/5 transition-colors group">
+                        <tr key={i} className="hover:bg-secondary/10 transition-colors group">
                            <td className="px-8 py-4">
-                              <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">{m.dateFormatted}</p>
-                              <p className="text-xs font-bold truncate max-w-[200px]">{m.opponent}</p>
+                              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">{m.dateFormatted}</p>
+                              <p className="text-xs font-bold truncate max-w-[200px] text-foreground">{m.opponent}</p>
                            </td>
-                           <td className="px-8 py-4 text-right font-black text-lg">
-                              {m.bat_runs}<span className="text-white/30">{m.bat_not_out ? '*' : ''}</span>
+                           <td className="px-8 py-4 text-right font-black text-lg text-foreground">
+                              {m.bat_runs}<span className="text-muted-foreground/30">{m.bat_not_out ? '*' : ''}</span>
                            </td>
                            <td className="px-8 py-4 text-right">
-                              <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase ${getFormLabel(m.formScore).color} bg-white/5`}>{m.formScore}</span>
+                              <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase ${getFormLabel(m.formScore).color} bg-secondary/20`}>{m.formScore}</span>
                            </td>
                         </tr>
                      ))}

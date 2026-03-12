@@ -13,16 +13,35 @@ interface BowlingFormTrackerProps {
   format: string;
 }
 
-function calcBowlingFormScore(wickets: number, econ: number) {
-  let score = wickets * 3.0; // 2 wkts = 6.0
+function calcBowlingFormScore(wickets: number, econ: number, format: string) {
+  // Volume Index (Success Rate)
+  let score = wickets * 3.0; 
+  
+  // Tactical Breakthrough Bonuses
   if (wickets >= 5) score += 5.0;
   else if (wickets >= 3) score += 2.0;
 
-  if (econ < 6.5) score += 3.0;
-  else if (econ < 8.5) score += 1.5;
-  else if (econ > 11.0) score -= 3.0;
+  const isT20 = format === "T20I" || format === "IPL" || format === "T20";
+  const isODI = format === "ODI";
   
-  return +Math.min(10, Math.max(1, score)).toFixed(1);
+  // Suppression Metrics (Economy) - Context Aware
+  if (isT20) {
+    if (econ < 6.5) score += 3.0;
+    else if (econ < 8.0) score += 1.5;
+    else if (econ > 10.0) score -= 3.0;
+  } else if (isODI) {
+    if (econ < 4.5) score += 3.0;
+    else if (econ < 5.5) score += 1.5;
+    else if (econ > 7.5) score -= 3.0;
+  } else { // Multi-Day / Test Deployment
+    if (econ < 2.5) score += 3.0;
+    else if (econ < 3.5) score += 1.5;
+    else if (econ > 4.5) score -= 3.0;
+  }
+  
+  // Final Evaluation - Clamp to normalized [1, 10] range
+  const normalizedScore = Math.min(10, Math.max(1, score));
+  return +normalizedScore.toFixed(1);
 }
 
 function getFormLabel(score: number) {
@@ -46,7 +65,7 @@ export function BowlingFormTracker({ recentMatches, format }: BowlingFormTracker
           ...m,
           econ,
           year,
-          formScore: calcBowlingFormScore(m.bowl_wickets, econ),
+          formScore: calcBowlingFormScore(m.bowl_wickets, econ, format),
           opponent: `${m.team1} vs ${m.team2}`,
           dateFormatted: m.match_date ? dateFmt(new Date(m.match_date), "d MMM yyyy") : "—",
         };
@@ -133,7 +152,7 @@ export function BowlingFormTracker({ recentMatches, format }: BowlingFormTracker
            </div>
            
            <div className="absolute top-0 right-0 p-8 flex flex-col items-end opacity-20 pointer-events-none">
-              <Target className="h-24 w-24 text-white" />
+              <Target className="h-24 w-24 text-foreground" />
            </div>
         </div>
 
@@ -180,13 +199,13 @@ export function BowlingFormTracker({ recentMatches, format }: BowlingFormTracker
              <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em]">Impact Progression Analysis</h3>
           </div>
           
-          <div className="flex gap-2 bg-black/20 p-1.5 rounded-xl border border-white/5 max-w-[400px] overflow-x-auto no-scrollbar">
+          <div className="flex gap-2 bg-secondary/20 p-1.5 rounded-xl border border-border/50 max-w-[400px] overflow-x-auto no-scrollbar">
             {years.map((y) => (
               <button
                 key={y}
                 onClick={() => setSelectedYear(y)}
                 className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
-                  selectedYear === y ? "bg-primary text-white" : "text-muted-foreground hover:text-white"
+                  selectedYear === y ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "text-muted-foreground hover:text-foreground hover:bg-secondary/40"
                 }`}
               >
                 {y}
@@ -205,13 +224,13 @@ export function BowlingFormTracker({ recentMatches, format }: BowlingFormTracker
                 if (!payload?.length) return null;
                 const d = payload[0].payload;
                 return (
-                  <div className="rounded-2xl border border-white/10 bg-black/80 backdrop-blur-xl px-4 py-3 text-xs shadow-2xl ring-1 ring-white/10 min-w-[200px]">
-                    <p className="font-black text-white/50 uppercase tracking-widest text-[10px] mb-2">{d.opponent}</p>
+                  <div className="rounded-2xl border border-border/50 bg-card/90 backdrop-blur-xl px-4 py-3 text-xs shadow-2xl min-w-[200px]">
+                    <p className="font-black text-muted-foreground uppercase tracking-widest text-[10px] mb-2">{d.opponent}</p>
                     <div className="flex items-center justify-between mb-2">
-                       <span className="text-2xl font-black">{d.bowl_wickets}/{d.bowl_runs}</span>
+                       <span className="text-2xl font-black text-foreground">{d.bowl_wickets}/{d.bowl_runs}</span>
                        <span className={`text-base font-black ${getFormLabel(d.formScore).color}`}>{d.formScore} IDx</span>
                     </div>
-                    <div className="flex justify-between text-[10px] font-black uppercase text-muted-foreground pt-2 border-t border-white/5">
+                    <div className="flex justify-between text-[10px] font-black uppercase text-muted-foreground pt-2 border-t border-border/50">
                        <span>ECON: {d.econ}</span>
                        <span>OVERS: {d.bowl_overs}</span>
                     </div>
@@ -257,26 +276,26 @@ export function BowlingFormTracker({ recentMatches, format }: BowlingFormTracker
             </div>
             <div className="overflow-x-auto -mx-8 max-h-[400px] no-scrollbar overflow-y-auto">
                <table className="w-full">
-                  <thead className="bg-white/5 text-[10px] font-black uppercase tracking-widest text-muted-foreground sticky top-0 z-10">
+                  <thead className="bg-secondary/40 text-[10px] font-black uppercase tracking-widest text-muted-foreground sticky top-0 z-10">
                      <tr>
                         <th className="px-8 py-4 text-left">Match Details</th>
                         <th className="px-8 py-4 text-right">Figures</th>
                         <th className="px-8 py-4 text-right">Momentum</th>
                      </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/5">
+                  <tbody className="divide-y divide-border/20">
                      {[...filteredMatches].reverse().map((m, i) => (
-                        <tr key={i} className="hover:bg-white/5 transition-colors group">
+                        <tr key={i} className="hover:bg-secondary/10 transition-colors group">
                            <td className="px-8 py-4">
-                              <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">{m.dateFormatted}</p>
-                              <p className="text-xs font-bold truncate max-w-[200px]">{m.opponent}</p>
+                              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">{m.dateFormatted}</p>
+                              <p className="text-xs font-bold truncate max-w-[200px] text-foreground">{m.opponent}</p>
                            </td>
-                           <td className="px-8 py-4 text-right">
-                              <span className="font-black text-lg">{m.bowl_wickets}/{m.bowl_runs}</span>
+                           <td className="px-8 py-4 text-right font-black text-lg text-foreground">
+                              {m.bowl_wickets}/{m.bowl_runs}
                               <p className="text-[10px] text-muted-foreground font-bold uppercase">{m.bowl_overs} Ov · {m.econ} EC</p>
                            </td>
                            <td className="px-8 py-4 text-right">
-                              <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase ${getFormLabel(m.formScore).color} bg-white/5`}>{m.formScore}</span>
+                              <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase ${getFormLabel(m.formScore).color} bg-secondary/20`}>{m.formScore}</span>
                            </td>
                         </tr>
                      ))}

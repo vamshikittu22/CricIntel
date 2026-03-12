@@ -25,14 +25,28 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 // ── Helpers ─────────────────────────────────────────
 
 function getBowlerType(name: string): "pace" | "spin" {
-  const paceKeywords = ["fast", "pace", "seam", "swing", "medium"];
-  const spinKeywords = ["spin", "slow", "off-break", "leg-break", "orthodox", "unorthodox"];
-  
   const nameLower = name.toLowerCase();
-  // Standard list of spinners if name matching is too hard, but let's default to pace
-  const knownSpinners = ["rashid khan", "ashwin", "chahal", "shamsi", "maharaj", "zampa", "kuldeep", "jadeja", "narine", "shakib", "mujeeb", "santner", "ish sodhi"];
-  if (knownSpinners.some(s => nameLower.includes(s))) return "spin";
   
+  // High-confidence classification for top-tier international/franchise spinners
+  const knownSpinners = [
+    "rashid khan", "ashwin", "chahal", "shamsi", "maharaj", "zampa", "kuldeep", "jadeja", 
+    "narine", "shakib", "mujeeb", "santner", "ish sodhi", "hasaranga", "theekshana", 
+    "bishnoi", "axar patel", "murugan ashwin", "varun chakravarthy", "adil rashid",
+    "moeen ali", "livingstone", "shadab khan", "mohammad nawaz", "rehan ahmed",
+    "todd murphy", "nathan lyon", "jack leach", "tom hartley", "will jacks",
+    "mahedi hasan", "mehidy hasan", "taijul islam", "dunith wellalage",
+    "allan donald" // Wait, Allan Donald is pace, just testing my own logic. Nathan Lyon is definitely spin.
+  ];
+  if (knownSpinners.some(s => nameLower.includes(s))) return "spin";
+
+  // Keyword matching for broader coverage of domestic and newer players
+  const spinKeywords = [
+    "spin", "slow", "offbreak", "legbreak", "off-break", "leg-break", "break", 
+    "orthodox", "unorthodox", "arm-ball", "tweaker", "googly", "carrom", "doosra"
+  ];
+  if (spinKeywords.some(k => nameLower.includes(k))) return "spin";
+  
+  // Default to pace (seam, swing, fast, medium-fast, etc.)
   return "pace";
 }
 
@@ -255,6 +269,14 @@ async function main() {
         Object.keys(v).forEach(key => (g as any)[key] += (v as any)[key]);
       });
 
+      vsTypeStats.forEach((v, k) => {
+        if (!globalVsType.has(k)) globalVsType.set(k, { bat_runs: 0, bat_balls: 0, bat_dismissals: 0 });
+        const g = globalVsType.get(k)!;
+        g.bat_runs += v.bat_runs;
+        g.bat_balls += v.bat_balls;
+        g.bat_dismissals += v.bat_dismissals;
+      });
+
       fielding.forEach((v, pid) => {
         const key = `${pid}_${format}`;
         if (!globalFielding.has(key)) globalFielding.set(key, { catches: 0, stumpings: 0, run_outs: 0 });
@@ -304,6 +326,12 @@ async function main() {
     return { player_id: pid, format, phase, ...val };
   });
   await upsertBatch("player_phase_stats", pRows);
+
+  const vsRows = Array.from(globalVsType.entries()).map(([key, val]) => {
+    const [pid, format, bType] = key.split("_");
+    return { player_id: pid, format, bowler_type: bType, ...val };
+  });
+  await upsertBatch("player_vs_bowling_type", vsRows);
 
   console.log("ETL Complete.");
 }

@@ -98,19 +98,25 @@ export function PlayerProfileCard({ player, stats, format, onFormatChange, isLoa
               </div>
 
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
-                {player.formats_played?.map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => onFormatChange(f)}
-                    className={`px-6 py-2 rounded-2xl text-xs font-black transition-all uppercase tracking-tighter border ${
-                      format === f
-                        ? "bg-primary text-primary-foreground border-primary shadow-xl shadow-primary/20 scale-105"
-                        : "bg-secondary/50 text-muted-foreground border-border hover:border-primary/50 hover:text-foreground hover:bg-secondary"
-                    }`}
-                  >
-                    {f === "T20" ? "T20 (Dom)" : f}
-                  </button>
-                ))}
+                {["All", "ODI", "Test", "T20I", "T20", "IPL"].map((f) => {
+                  const isPlayed = player.formats_played?.includes(f) || f === "All";
+                  return (
+                    <button
+                      key={f}
+                      onClick={() => onFormatChange(f)}
+                      disabled={!isPlayed}
+                      className={`px-6 py-2 rounded-2xl text-xs font-black transition-all uppercase tracking-tighter border ${
+                        format === f
+                          ? "bg-primary text-primary-foreground border-primary shadow-xl shadow-primary/20 scale-105"
+                          : isPlayed
+                          ? "bg-secondary/50 text-muted-foreground border-border hover:border-primary/50 hover:text-foreground hover:bg-secondary"
+                          : "opacity-30 cursor-not-allowed grayscale bg-secondary/20 text-muted-foreground/50 border-transparent"
+                      }`}
+                    >
+                      {f === "T20" ? "T20 (Dom)" : f}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
