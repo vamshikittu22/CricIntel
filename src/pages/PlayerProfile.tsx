@@ -12,7 +12,7 @@ import { FieldingTab } from "@/components/fielding/FieldingTab";
 import { FormTab } from "@/components/form/FormTab";
 import { EmptyState } from "@/components/ui/empty-state";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { usePlayerTotals } from "@/lib/hooks/usePlayers";
 
 export default function PlayerProfile() {
@@ -22,6 +22,16 @@ export default function PlayerProfile() {
   const { data: player, isLoading: playerLoading } = usePlayer(id);
   const { data: summaries, isLoading: summaryLoading } = usePlayerSummary(id);
   const { data: totals, isLoading: totalsLoading } = usePlayerTotals(id);
+
+  // Set default format to first available once player data loads
+  useEffect(() => {
+    if (player?.formats_played && player.formats_played.length > 0) {
+      if (!player.formats_played.includes(format)) {
+        setFormat(player.formats_played[0]);
+      }
+    }
+  }, [player]);
+
   const { data: recentMatches, isLoading: matchesLoading } = usePlayerRecentMatches(id, format);
 
   const stats = summaries?.find((s) => s.format === format) ?? null;

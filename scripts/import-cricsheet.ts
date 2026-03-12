@@ -64,11 +64,16 @@ function readJsonFiles(dir: string): string[] {
 
 async function upsertBatch(table: string, rows: any[], chunkSize = 100) {
   if (rows.length === 0) return;
+  const onConflict = 
+    table === "players" ? "id" : 
+    table === "player_stats_summary" ? "player_id,format" :
+    table === "player_phase_stats" ? "player_id,format,phase" :
+    table === "player_vs_bowling_type" ? "player_id,format,bowler_type" :
+    undefined;
+
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize);
-    const { error } = await supabase.from(table).upsert(chunk, { 
-      onConflict: table === "players" ? "id" : undefined 
-    });
+    const { error } = await supabase.from(table).upsert(chunk, { onConflict });
     if (error) console.error(`  Error upserting ${table} chunk ${i}:`, error.message);
   }
 }
@@ -88,11 +93,20 @@ function processMatch(match: CricsheetMatch, matchId: string) {
 
   const playerRows: any[] = [];
   const playerTeam = new Map<string, string>();
+  
+  // Ensure all players in registry are included to avoid FK issues
+  for (const [name, pid] of Object.entries(nameToId)) {
+    playerRows.push({ 
+      id: pid, 
+      name, 
+      gender: info.gender || "male" 
+    });
+  }
+
   for (const [team, names] of Object.entries(info.players)) {
     for (const name of names) {
       const pid = nameToId[name];
       if (pid) {
-        playerRows.push({ id: pid, name, country: team, gender: info.gender || "male" });
         playerTeam.set(pid, team);
       }
     }

@@ -42,14 +42,34 @@ export function PlayerProfileCard({ player, stats, format, onFormatChange, isLoa
     );
   }
 
-  const formScore = stats
-    ? Math.min(10, Math.max(1, ((stats.strike_rate || 0) / 20 + (stats.average || 0) / 10 + (stats.hundreds || 0) * 2)))
-    : 0;
+  const calculateForm = () => {
+    if (!stats) return 0;
+    
+    // Bowler specialized scoring
+    if (player.role === "bowl") {
+      const econScore = Math.max(0, (9 - (stats.econ || 9)) * 1.2); // Better than 9 econ is good
+      const srScore = stats.bowl_strike_rate ? Math.max(0, (35 - stats.bowl_strike_rate) / 3) : 0;
+      const fiveW = (stats.bowl_five_wickets || 0) * 2.5;
+      return Math.min(10, Math.max(1, econScore + srScore + fiveW));
+    }
+    
+    // All-rounder or Batter scoring
+    const batScore = (stats.strike_rate || 0) / 25 + (stats.average || 0) / 12 + (stats.hundreds || 0) * 2;
+    
+    if (player.role === "allrounder") {
+      const bowlScore = Math.max(0, (9 - (stats.econ || 9)) * 1.0) + (stats.bowl_strike_rate ? Math.max(0, (40 - stats.bowl_strike_rate) / 5) : 0);
+      return Math.min(10, Math.max(1, (batScore * 0.6) + (bowlScore * 0.4)));
+    }
+    
+    return Math.min(10, Math.max(1, batScore));
+  };
+
+  const formScore = calculateForm();
   
-  const formStatus = formScore >= 7.5 ? "Elite" : formScore >= 6 ? "Strong" : formScore >= 4 ? "Stable" : "Poor";
-  const formBadgeColor = formScore >= 7 
+  const formStatus = formScore >= 8 ? "Elite" : formScore >= 6.5 ? "Strong" : formScore >= 4 ? "Stable" : "Poor";
+  const formBadgeColor = formScore >= 8 
     ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" 
-    : formScore >= 5 
+    : formScore >= 6.5 
       ? "bg-amber-500/10 text-amber-500 border-amber-500/20" 
       : "bg-rose-500/10 text-rose-500 border-rose-500/20";
 

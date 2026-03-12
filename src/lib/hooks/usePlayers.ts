@@ -152,10 +152,17 @@ export function usePlayerTotals(playerId: string | undefined) {
           fours: (acc.fours || 0) + (curr.fours || 0),
           sixes: (acc.sixes || 0) + (curr.sixes || 0),
           not_outs: (acc.not_outs || 0) + (curr.not_outs || 0),
+          hundreds: (acc.hundreds || 0) + (curr.hundreds || 0),
+          fifties: (acc.fifties || 0) + (curr.fifties || 0),
+          best_score: Math.max(acc.best_score || 0, curr.best_score || 0),
           innings_bowl: (acc.innings_bowl || 0) + (curr.innings_bowl || 0),
           overs: (acc.overs || 0) + (curr.overs || 0),
           bowl_runs: (acc.bowl_runs || 0) + (curr.bowl_runs || 0),
           wickets: (acc.wickets || 0) + (curr.wickets || 0),
+          bowl_five_wickets: (acc.bowl_five_wickets || 0) + (curr.bowl_five_wickets || 0),
+          catches: (acc.catches || 0) + (curr.catches || 0),
+          stumpings: (acc.stumpings || 0) + (curr.stumpings || 0),
+          run_outs: (acc.run_outs || 0) + (curr.run_outs || 0),
         };
       }, {
         matches: 0,
@@ -165,10 +172,17 @@ export function usePlayerTotals(playerId: string | undefined) {
         fours: 0,
         sixes: 0,
         not_outs: 0,
+        hundreds: 0,
+        fifties: 0,
+        best_score: 0,
         innings_bowl: 0,
         overs: 0,
         bowl_runs: 0,
         wickets: 0,
+        bowl_five_wickets: 0,
+        catches: 0,
+        stumpings: 0,
+        run_outs: 0,
       });
       
       // Calculate derived statistics
