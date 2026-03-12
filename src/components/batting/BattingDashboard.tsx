@@ -108,7 +108,7 @@ export function BattingDashboard({ stats, recentMatches, format, isLoading: pare
   if (isLoading) {
     return (
       <div className="space-y-8 animate-pulse">
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-[1.5rem]" />)}
         </div>
         <div className="grid gap-8 lg:grid-cols-2">
@@ -125,8 +125,8 @@ export function BattingDashboard({ stats, recentMatches, format, isLoading: pare
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-12 pb-24">
-      {/* Primary KPI Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+      {/* Primary KPI Grid - Adjusted to 2 rows (3 columns) on LG */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
         {[
           { label: "Aggregate Matches", value: stats?.matches ?? processedMatches.length, icon: History },
           { label: "Total Runs", value: stats?.runs ?? processedMatches.reduce((a,b) => a+b.runs, 0), highlight: true, icon: Trophy },

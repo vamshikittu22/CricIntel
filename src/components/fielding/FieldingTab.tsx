@@ -125,12 +125,12 @@ export function FieldingTab({ isLoading: parentLoading }: FieldingTabProps) {
     setActiveField(config);
   };
 
-  if (isLoading) return <div className="space-y-12 pb-20"><div className="grid grid-cols-4 gap-6"><Skeleton className="h-28 rounded-[2rem]" /></div><Skeleton className="h-[550px] rounded-[3rem]" /></div>;
+  if (isLoading) return <div className="space-y-12 pb-20"><div className="grid grid-cols-2 gap-6">{Array.from({length: 4}).map((_, i) => <Skeleton key={i} className="h-32 rounded-[2rem]" />)}</div><Skeleton className="h-[550px] rounded-[3rem]" /></div>;
 
   return (
     <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-16 pb-24">
       {metrics ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 gap-6">
           {metrics.map((m, i) => (
             <div key={i} className="stat-card glass border-border/50 group hover:border-primary/30 transition-all">
               <div className="flex items-center justify-between mb-4">

@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getFlag } from "@/lib/countryFlags";
-import { Clock, TrendingUp, User, UserCheck, Swords, Target, RefreshCw, Trophy } from "lucide-react";
+import { Clock, TrendingUp, User, UserCheck, Swords, Target, RefreshCw, Trophy, Zap, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -499,40 +499,38 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Featured Infinite Scroll Section */}
-        <section className="mb-20 overflow-hidden py-10">
-          <div className="container mx-auto px-4 mb-8">
+        {/* Featured Analytics - Adjusted to 2 rows grid */}
+        <section className="container mx-auto px-4 mb-20">
+          <div className="mb-8">
              <h2 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] flex items-center gap-2">
                <TrendingUp className="w-4 h-4" />
                Featured Analytics
              </h2>
           </div>
-          <div className="relative">
-            <div className="scroll-container animate-scroll">
-              {/* Cards set 1 */}
-              {renderFeaturedCard("Run Machines", processedData?.topScorers || [], "runs", "emerald", TrendingUp)}
-              {renderFeaturedCard("Boundary Queens/Kings", processedData?.mostBoundaries || [], "boundaries", "orange", Target)}
-              {renderFeaturedCard("Consistency Kings", processedData?.highestAverage || [], "average", "blue", User)}
-              {renderFeaturedCard("Power Hitters", processedData?.bestStrikeRate || [], "strike_rate", "purple", Clock)}
-              {renderFeaturedCard("Wicket Takers", processedData?.mostWickets || [], "wickets", "red", Swords)}
-              {renderFeaturedCard("Bowling Prowess", processedData?.bestBowlingAvg || [], "bowl_average", "pink", Target)}
-              {renderFeaturedCard("Match Winners", mostFiveWicketHauls || [], "count", "amber", Swords)}
-              
-              {/* Duplicate set for infinite loop */}
-              {renderFeaturedCard("Run Machines", processedData?.topScorers || [], "runs", "emerald", TrendingUp)}
-              {renderFeaturedCard("Boundary Queens/Kings", processedData?.mostBoundaries || [], "boundaries", "orange", Target)}
-              {renderFeaturedCard("Consistency Kings", processedData?.highestAverage || [], "average", "blue", User)}
-              {renderFeaturedCard("Power Hitters", processedData?.bestStrikeRate || [], "strike_rate", "purple", Clock)}
-              {renderFeaturedCard("Wicket Takers", processedData?.mostWickets || [], "wickets", "red", Swords)}
-              {renderFeaturedCard("Bowling Prowess", processedData?.bestBowlingAvg || [], "bowl_average", "pink", Target)}
-              {renderFeaturedCard("Match Winners", mostFiveWicketHauls || [], "count", "amber", Swords)}
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {renderFeaturedCard("Run Machines", processedData?.topScorers || [], "runs", "blue", TrendingUp)}
+            {renderFeaturedCard("Boundary Elite", processedData?.mostBoundaries || [], "boundaries", "orange", Target)}
+            {renderFeaturedCard("Consistency Kings", processedData?.highestAverage || [], "average", "blue", UserCheck)}
+            {renderFeaturedCard("Power Hitters", processedData?.bestStrikeRate || [], "strike_rate", "purple", Zap)}
+            {renderFeaturedCard("Wicket Takers", processedData?.mostWickets || [], "wickets", "red", Swords)}
+            {renderFeaturedCard("Bowling Prowess", processedData?.bestBowlingAvg || [], "bowl_average", "pink", Target)}
+            {renderFeaturedCard("Match Winners", mostFiveWicketHauls || [], "count", "amber", Swords)}
+            
+            {/* Strategy Insight Card to fill the 8th slot */}
+            <div className="flex-shrink-0 card-hover p-6 rounded-2xl bg-secondary/20 border border-white/5 flex flex-col justify-center items-center text-center opacity-60 hover:opacity-100 transition-opacity">
+               <div className="p-3 bg-white/5 rounded-full mb-4">
+                  <Activity className="w-6 h-6 text-muted-foreground" />
+               </div>
+               <h3 className="text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-white/40">Strategic Engine</h3>
+               <p className="text-xs font-medium text-muted-foreground px-4">Tactical overlays and deployment logic updated in real-time.</p>
             </div>
           </div>
         </section>
 
-        {/* Leaderboards */}
+        {/* Leaderboards - Side by Side on LG */}
         <section className="container mx-auto px-4">
-          <div className="grid grid-cols-1 lg:grid-cols-1 gap-12">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             {renderTopPlayers("Top Batters", processedData?.topBatters || [], "runs", "Runs", Swords, "left")}
             {renderTopPlayers("Top Bowlers", processedData?.topBowlers || [], "wickets", "Wickets", Target, "right")}
           </div>

@@ -109,7 +109,7 @@ export function PlayerOverview({ battingStats, bowlingStats, format, totals, rec
   return (
     <div className="space-y-12">
       {/* Milestone Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
         {milestones.map((s, i) => (
           <motion.div 
             key={s.label} 
