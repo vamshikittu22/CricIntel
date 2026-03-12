@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { motion } from "framer-motion";
 import type { PlayerMatchRow } from "@/lib/hooks/usePlayers";
+import { Activity, Target } from "lucide-react";
 
 interface FormTabProps {
   recentMatches: PlayerMatchRow[];
@@ -17,9 +18,12 @@ export function FormTab({ recentMatches, format, isLoading }: FormTabProps) {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-40 rounded-lg" />
-        <Skeleton className="h-72 rounded-lg" />
+      <div className="space-y-8 pb-20">
+        <div className="flex justify-center mb-8">
+           <Skeleton className="h-12 w-64 rounded-2xl" />
+        </div>
+        <Skeleton className="h-48 rounded-3xl" />
+        <Skeleton className="h-96 rounded-3xl" />
       </div>
     );
   }
@@ -31,40 +35,49 @@ export function FormTab({ recentMatches, format, isLoading }: FormTabProps) {
   const hasBatting = recentMatches.some(m => m.is_batter);
   const hasBowling = recentMatches.some(m => m.is_bowler);
   
-  // Set default type if a player only has one skill
   const displayType = (formType === "batting" && hasBatting) ? "batting" 
     : (formType === "bowling" && hasBowling) ? "bowling" 
     : hasBatting ? "batting" 
     : "bowling";
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-10 pb-24">
       {(hasBatting && hasBowling) && (
-        <div className="flex bg-muted/30 p-1 rounded-xl w-full max-w-sm mx-auto border border-border">
-          <button
-            onClick={() => setFormType("batting")}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold transition-all ${
-              displayType === "batting" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-            }`}
-          >
-            🏏 Batting Form
-          </button>
-          <button
-            onClick={() => setFormType("bowling")}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold transition-all ${
-              displayType === "bowling" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-            }`}
-          >
-            🥎 Bowling Form
-          </button>
+        <div className="flex justify-center">
+          <div className="flex glass p-1.5 rounded-2xl border-white/5 shadow-2xl">
+            <button
+              onClick={() => setFormType("batting")}
+              className={`flex items-center gap-3 py-3 px-8 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                displayType === "batting" 
+                  ? "bg-primary text-white shadow-[0_0_30px_-10px_rgba(var(--primary-rgb),0.5)]" 
+                  : "text-muted-foreground hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Activity className="h-4 w-4" />
+              Batting Form
+            </button>
+            <button
+              onClick={() => setFormType("bowling")}
+              className={`flex items-center gap-3 py-3 px-8 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                displayType === "bowling" 
+                  ? "bg-primary text-white shadow-[0_0_30px_-10px_rgba(var(--primary-rgb),0.5)]" 
+                  : "text-muted-foreground hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Target className="h-4 w-4" />
+              Bowling Form
+            </button>
+          </div>
         </div>
       )}
 
-      {displayType === "batting" ? (
-        <BattingFormTracker recentMatches={recentMatches} format={format} />
-      ) : (
-        <BowlingFormTracker recentMatches={recentMatches} format={format} />
-      )}
+      <div className="space-y-12">
+        {displayType === "batting" ? (
+          <BattingFormTracker recentMatches={recentMatches} format={format} />
+        ) : (
+          <BowlingFormTracker recentMatches={recentMatches} format={format} />
+        )}
+      </div>
     </motion.div>
   );
 }

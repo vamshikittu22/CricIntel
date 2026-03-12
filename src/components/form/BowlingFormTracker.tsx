@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { motion } from "framer-motion";
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, ReferenceLine, Legend,
+  LineChart, Line, BarChart, Bar, XAxis, YAxis,
+  Tooltip, ResponsiveContainer,
 } from "recharts";
 import { format as dateFmt } from "date-fns";
 import type { PlayerMatchRow } from "@/lib/hooks/usePlayers";
+import { TrendingUp, Activity, History, Zap, Trophy, TrendingDown, Target } from "lucide-react";
 
 interface BowlingFormTrackerProps {
   recentMatches: PlayerMatchRow[];
@@ -14,14 +14,10 @@ interface BowlingFormTrackerProps {
 }
 
 function calcBowlingFormScore(wickets: number, econ: number) {
-  // Impact: Wickets are the primary metric
-  let score = wickets * 3.0; // 2 wkts = 6.0, 3 wkts = 9.0
-  
-  // Milestone Bonuses
+  let score = wickets * 3.0; // 2 wkts = 6.0
   if (wickets >= 5) score += 5.0;
   else if (wickets >= 3) score += 2.0;
 
-  // Economy Bonuses (Format Agnostic Baseline)
   if (econ < 6.5) score += 3.0;
   else if (econ < 8.5) score += 1.5;
   else if (econ > 11.0) score -= 3.0;
@@ -30,44 +26,11 @@ function calcBowlingFormScore(wickets: number, econ: number) {
 }
 
 function getFormLabel(score: number) {
-  if (score >= 7) return { label: "Good Form", color: "text-emerald-400" };
-  if (score >= 5) return { label: "Average Form", color: "text-yellow-400" };
-  return { label: "Poor Form", color: "text-red-400" };
+  if (score >= 7.5) return { label: "Elite Performance", color: "text-primary", icon: Zap };
+  if (score >= 5.5) return { label: "Sustained Momentum", color: "text-blue-400", icon: TrendingUp };
+  if (score >= 4.0) return { label: "Neutral Phase", color: "text-amber-400", icon: Activity };
+  return { label: "Performance Deficit", color: "text-rose-500", icon: TrendingDown };
 }
-
-function getWicketsBg(wickets: number) {
-  if (wickets >= 5) return "border-l-2 border-l-purple-500 bg-purple-500/5";
-  if (wickets >= 3) return "border-l-2 border-l-emerald-500 bg-emerald-500/5";
-  if (wickets === 0) return "border-l-2 border-l-red-500 bg-red-500/5";
-  return "";
-}
-
-const WicketsTooltip = ({ active, payload }: any) => {
-  if (!active || !payload?.length) return null;
-  const d = payload[0]?.payload;
-  return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-xl space-y-1">
-      <p className="font-semibold text-foreground">{d?.year}</p>
-      <p className="text-blue-400">Matches: <span className="font-bold text-foreground">{d?.matches}</span></p>
-      <p className="text-emerald-400">Wickets: <span className="font-bold text-foreground">{d?.wickets}</span></p>
-      <p className="text-yellow-400">Average: <span className="font-bold text-foreground">{d?.avg ?? "—"}</span></p>
-      <p className="text-primary">Econ: <span className="font-bold text-foreground">{d?.econ ?? "—"}</span></p>
-    </div>
-  );
-};
-
-const MatchTooltip = ({ active, payload }: any) => {
-  if (!active || !payload?.length) return null;
-  const d = payload[0]?.payload;
-  return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-xl space-y-1">
-      <p className="font-semibold text-foreground">{d?.opponent}</p>
-      <p className="text-muted-foreground">{d?.dateFormatted} · {d?.venue}</p>
-      <p className="text-emerald-400">Figures: <span className="font-bold text-foreground">{d?.bowl_wickets}/{d?.bowl_runs}</span> ({d?.bowl_overs} overs)</p>
-      <p className="text-blue-400">Econ: <span className="font-bold text-foreground">{d?.econ}</span></p>
-    </div>
-  );
-};
 
 export function BowlingFormTracker({ recentMatches, format }: BowlingFormTrackerProps) {
   const [selectedYear, setSelectedYear] = useState<string>("All");
@@ -89,7 +52,6 @@ export function BowlingFormTracker({ recentMatches, format }: BowlingFormTracker
         };
       }), [recentMatches]);
 
-  // Year-by-year summary
   const yearSummaries = useMemo(() => {
     const map = new Map<string, { matches: number; wickets: number; runs: number; overs: number }>();
     for (const m of bowlingMatches) {
@@ -110,7 +72,6 @@ export function BowlingFormTracker({ recentMatches, format }: BowlingFormTracker
       });
   }, [bowlingMatches]);
 
-  // Overall career summary
   const overallSummary = useMemo(() => {
     const innings = bowlingMatches.length;
     const wickets = bowlingMatches.reduce((sum, m) => sum + m.bowl_wickets, 0);
@@ -131,239 +92,199 @@ export function BowlingFormTracker({ recentMatches, format }: BowlingFormTracker
     return { innings, wickets, avg, econ, sr, maidens, fourWPlus, bestBowling: `${bestBowling.w}/${bestBowling.r}` };
   }, [bowlingMatches]);
 
-  // Available years for filter
   const years = useMemo(() => ["All", ...yearSummaries.map((y) => y.year)], [yearSummaries]);
-
-  // Filtered matches for table/chart
   const filteredMatches = useMemo(() =>
     selectedYear === "All" ? bowlingMatches : bowlingMatches.filter((m) => m.year === selectedYear),
     [bowlingMatches, selectedYear]);
 
-  // Recent 20 for the form timeline chart
   const recentForChart = filteredMatches.slice(-20);
-
   const currentFormScore = recentForChart.length ? recentForChart[recentForChart.length - 1].formScore : null;
-  const { label: formLabel, color: formColor } = currentFormScore
+  const { label: formLabel, color: formColor, icon: FormIcon } = currentFormScore
     ? getFormLabel(currentFormScore)
-    : { label: "No Data", color: "text-muted-foreground" };
-
-  if (!bowlingMatches.length) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
-        <div className="text-4xl">🏏</div>
-        <p className="text-muted-foreground">No bowling data available for {format}.</p>
-      </div>
-    );
-  }
+    : { label: "Insufficient Data", color: "text-muted-foreground", icon: Target };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-
-      {/* ── Overall Career Summary ── */}
-      <Card className="border-border/50 overflow-hidden">
-        <div className="h-1 w-full bg-gradient-to-r from-primary via-primary/60 to-transparent" />
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Overall Career Summary ({format})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-4 sm:grid-cols-7 gap-3 text-center">
-            {[
-              { label: "Innings", value: overallSummary.innings },
-              { label: "Wickets", value: overallSummary.wickets },
-              { label: "Average", value: overallSummary.avg ?? "—" },
-              { label: "Economy", value: overallSummary.econ ?? "—" },
-              { label: "Strike Rate", value: overallSummary.sr ?? "—" },
-              { label: "4+ Wickets", value: overallSummary.fourWPlus },
-              { label: "Best Bowling", value: overallSummary.bestBowling },
-            ].map((s) => (
-              <div key={s.label} className="rounded-lg bg-muted/40 p-3">
-                <p className="text-xl font-bold text-foreground">{s.value}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{s.label}</p>
+    <div className="space-y-12">
+      {/* Performance Status Banner */}
+      <div className="grid gap-6 md:grid-cols-3">
+        <div className="md:col-span-2 p-8 rounded-[2rem] glass border-border/50 relative overflow-hidden flex flex-col justify-between">
+           <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <FormIcon className={`h-5 w-5 ${formColor}`} />
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── Current Form Status ── */}
-      <Card className="border-border/50 overflow-hidden">
-        <div className="h-1 w-full bg-gradient-to-r from-primary to-primary/40" />
-        <CardContent className="p-5">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Current Form {selectedYear !== "All" ? `(${selectedYear})` : ""} — last 20 innings</p>
-              <div className="flex items-center gap-3">
-                <span className={`text-4xl font-bold ${formColor}`}>{currentFormScore ?? "—"}</span>
-                <div>
-                  <p className={`text-base font-semibold ${formColor}`}>{formLabel}</p>
-                  <p className="text-xs text-muted-foreground">out of 10</p>
-                </div>
+              <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em]">Momentum Intelligence Index</h3>
+           </div>
+           
+           <div className="flex items-end gap-6">
+              <div className="flex flex-col">
+                 <span className={`text-6xl font-black tracking-tighter ${formColor}`}>{currentFormScore ?? "—"}</span>
+                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mt-1">Impact Rating / 10</p>
               </div>
-              <div className="h-2 w-48 rounded-full bg-muted overflow-hidden mt-1">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{
-                    width: `${((currentFormScore ?? 0) / 10) * 100}%`,
-                    background: (currentFormScore ?? 0) >= 7 ? "hsl(var(--success))" : (currentFormScore ?? 0) >= 5 ? "hsl(var(--warning))" : "hsl(var(--destructive))",
-                  }}
-                />
+              <div className="flex-1 pb-2">
+                 <h4 className={`text-xl font-black uppercase tracking-tighter ${formColor} mb-2`}>{formLabel}</h4>
+                 <div className="h-3 w-full rounded-full bg-white/5 border border-white/5 overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${((currentFormScore ?? 0) / 10) * 100}%` }}
+                      className={`h-full rounded-full ${formColor.replace('text-', 'bg-')} shadow-[0_0_20px_rgba(var(--primary-rgb),0.3)]`}
+                    />
+                 </div>
               </div>
-            </div>
-            <p className="text-sm text-muted-foreground text-right">
-              {filteredMatches.length} innings<br />
-              <span className="text-xs">{selectedYear === "All" ? "all years" : selectedYear}</span>
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+           </div>
+           
+           <div className="absolute top-0 right-0 p-8 flex flex-col items-end opacity-20 pointer-events-none">
+              <Target className="h-24 w-24 text-white" />
+           </div>
+        </div>
 
-      {/* ── Form Timeline Chart ── */}
-      <Card className="border-border/50">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">
-            Form Timeline {selectedYear !== "All" ? `— ${selectedYear}` : "— Last 20 Innings"}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={recentForChart} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="dateFormatted" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} interval="preserveStartEnd" />
-              <YAxis yAxisId="wickets" orientation="left" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-              <YAxis yAxisId="form" orientation="right" domain={[0, 10]} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-              <ReferenceLine yAxisId="wickets" y={3} stroke="hsl(var(--success))" strokeDasharray="4 4" strokeOpacity={0.4} />
-              <Tooltip content={<MatchTooltip />} />
-              <Legend />
-              <Line yAxisId="wickets" type="monotone" dataKey="bowl_wickets" stroke="hsl(174,72%,45%)" strokeWidth={2} dot={{ r: 3, fill: "hsl(174,72%,45%)" }} name="Wickets" />
-              <Line yAxisId="form" type="monotone" dataKey="formScore" stroke="hsl(210,70%,60%)" strokeWidth={2} dot={{ r: 3, fill: "hsl(210,70%,60%)" }} name="Form Score" />
-            </LineChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      {/* ── Year Filter Pills ── */}
-      <div className="flex flex-wrap gap-2">
-        {years.map((y) => (
-          <button
-            key={y}
-            onClick={() => setSelectedYear(y)}
-            className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
-              selectedYear === y
-                ? "bg-primary text-primary-foreground border-primary"
-                : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
-            }`}
-          >
-            {y}
-          </button>
-        ))}
+        <div className="stat-card glass border-border/50 flex flex-col justify-center gap-4">
+           <div className="space-y-1">
+              <p className="label">Best Figures</p>
+              <p className="value text-primary">{overallSummary.bestBowling}</p>
+           </div>
+           <div className="grid grid-cols-2 gap-4 border-t border-white/5 pt-4">
+              <div>
+                 <p className="label">4w+ Hauls</p>
+                 <p className="text-lg font-black">{overallSummary.fourWPlus}</p>
+              </div>
+              <div>
+                 <p className="label">Lifetime Wkts</p>
+                 <p className="text-lg font-black">{overallSummary.wickets}</p>
+              </div>
+           </div>
+        </div>
       </div>
 
-      {/* ── Year-by-Year Bar Chart ── */}
-      <Card className="border-border/50">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Year-by-Year Wickets</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={yearSummaries} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="year" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-              <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-              <Tooltip content={<WicketsTooltip />} />
-              <Bar dataKey="wickets" fill="hsl(174,72%,45%)" radius={[4, 4, 0, 0]} name="Wickets" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+      {/* Career Aggregates Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-6">
+          {[
+            { label: "Wickets Taken", value: overallSummary.wickets, highlight: true },
+            { label: "Bowling Average", value: overallSummary.avg ?? "—" },
+            { label: "Economy Rate", value: overallSummary.econ ?? "—" },
+            { label: "Strike Rate", value: overallSummary.sr ?? "—" },
+          ].map((s, i) => (
+            <div key={i} className={`stat-card glass ${s.highlight ? "border-primary/30" : "border-border/50"}`}>
+              <span className="label leading-none">{s.label}</span>
+              <span className={`value mt-1 ${s.highlight ? "text-primary" : ""}`}>{s.value}</span>
+            </div>
+          ))}
+      </div>
 
-      {/* ── Year-by-Year Stats Table ── */}
-      <Card className="border-border/50">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Year-by-Year Breakdown</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border/50 text-muted-foreground text-xs uppercase tracking-wider">
-                  <th className="text-left py-3 px-4 font-medium">Year</th>
-                  <th className="text-right py-3 px-4 font-medium">Matches</th>
-                  <th className="text-right py-3 px-4 font-medium">Wickets</th>
-                  <th className="text-right py-3 px-4 font-medium">Average</th>
-                  <th className="text-right py-3 px-4 font-medium">Econ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {yearSummaries.map((y) => (
-                  <tr
-                    key={y.year}
-                    onClick={() => setSelectedYear(selectedYear === y.year ? "All" : y.year)}
-                    className={`border-b border-border/30 transition-colors cursor-pointer hover:bg-muted/30 ${selectedYear === y.year ? "bg-primary/10 border-l-2 border-l-primary" : ""}`}
-                  >
-                    <td className="py-3 px-4 font-semibold">{y.year}</td>
-                    <td className="py-3 px-4 text-right text-muted-foreground">{y.matches}</td>
-                    <td className="py-3 px-4 text-right font-bold text-foreground">{y.wickets}</td>
-                    <td className="py-3 px-4 text-right">{y.avg ?? "—"}</td>
-                    <td className="py-3 px-4 text-right">{y.econ ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Form Progression Chart */}
+      <div className="p-8 rounded-[2rem] glass border-border/50">
+        <div className="flex items-center justify-between mb-10">
+          <div className="flex items-center gap-3">
+             <div className="p-2 bg-secondary rounded-lg">
+                <History className="h-4 w-4 text-muted-foreground" />
+             </div>
+             <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em]">Impact Progression Analysis</h3>
           </div>
-          <p className="text-xs text-muted-foreground px-4 py-2">💡 Click a year to filter the charts and match table below</p>
-        </CardContent>
-      </Card>
+          
+          <div className="flex gap-2 bg-black/20 p-1.5 rounded-xl border border-white/5 max-w-[400px] overflow-x-auto no-scrollbar">
+            {years.map((y) => (
+              <button
+                key={y}
+                onClick={() => setSelectedYear(y)}
+                className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                  selectedYear === y ? "bg-primary text-white" : "text-muted-foreground hover:text-white"
+                }`}
+              >
+                {y}
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        <ResponsiveContainer width="100%" height={320}>
+          <LineChart data={recentForChart}>
+            <XAxis dataKey="dateFormatted" hide />
+            <YAxis yAxisId="wickets" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: "bold", fill: "hsl(var(--muted-foreground))" }} />
+            <YAxis yAxisId="form" orientation="right" hide domain={[0, 10]} />
+            <Tooltip
+              content={({ payload }) => {
+                if (!payload?.length) return null;
+                const d = payload[0].payload;
+                return (
+                  <div className="rounded-2xl border border-white/10 bg-black/80 backdrop-blur-xl px-4 py-3 text-xs shadow-2xl ring-1 ring-white/10 min-w-[200px]">
+                    <p className="font-black text-white/50 uppercase tracking-widest text-[10px] mb-2">{d.opponent}</p>
+                    <div className="flex items-center justify-between mb-2">
+                       <span className="text-2xl font-black">{d.bowl_wickets}/{d.bowl_runs}</span>
+                       <span className={`text-base font-black ${getFormLabel(d.formScore).color}`}>{d.formScore} IDx</span>
+                    </div>
+                    <div className="flex justify-between text-[10px] font-black uppercase text-muted-foreground pt-2 border-t border-white/5">
+                       <span>ECON: {d.econ}</span>
+                       <span>OVERS: {d.bowl_overs}</span>
+                    </div>
+                  </div>
+                );
+              }}
+            />
+            <Line yAxisId="wickets" type="stepAfter" dataKey="bowl_wickets" stroke="hsl(var(--primary))" strokeWidth={5} dot={false} activeDot={{ r: 8, strokeWidth: 0, fill: "hsl(var(--primary))" }} />
+            <Line yAxisId="form" type="monotone" dataKey="formScore" stroke="rgba(255,255,255,0.1)" strokeWidth={2} dot={false} strokeDasharray="5 5" />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
 
-      {/* ── Match-by-Match Table ── */}
-      <Card className="border-border/50">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">
-            Match by Match {selectedYear !== "All" ? `— ${selectedYear}` : `— All ${filteredMatches.length} innings`}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border/50 text-muted-foreground text-xs uppercase tracking-wider">
-                  <th className="text-left py-3 px-4 font-medium">Date</th>
-                  <th className="text-left py-3 px-4 font-medium">Match</th>
-                  <th className="text-right py-3 px-4 font-medium">Overs</th>
-                  <th className="text-right py-3 px-4 font-medium">Runs</th>
-                  <th className="text-right py-3 px-4 font-medium">Wickets</th>
-                  <th className="text-right py-3 px-4 font-medium">Maidens</th>
-                  <th className="text-right py-3 px-4 font-medium">Econ</th>
-                  <th className="text-right py-3 px-4 font-medium">Form</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...filteredMatches].reverse().map((m, i) => (
-                  <tr key={i} className={`border-b border-border/30 transition-colors hover:bg-muted/30 ${getWicketsBg(m.bowl_wickets)}`}>
-                    <td className="py-2.5 px-4 text-muted-foreground whitespace-nowrap text-xs">{m.dateFormatted}</td>
-                    <td className="py-2.5 px-4 font-medium text-xs max-w-[180px] truncate">{m.opponent}</td>
-                    <td className="py-2.5 px-4 text-right text-muted-foreground">{m.bowl_overs}</td>
-                    <td className="py-2.5 px-4 text-right text-muted-foreground">{m.bowl_runs}</td>
-                    <td className="py-2.5 px-4 text-right font-bold">
-                      {m.bowl_wickets >= 5
-                        ? <span className="text-purple-400">{m.bowl_wickets}</span>
-                        : m.bowl_wickets >= 3
-                        ? <span className="text-emerald-400">{m.bowl_wickets}</span>
-                        : <span>{m.bowl_wickets}</span>}
-                    </td>
-                    <td className="py-2.5 px-4 text-right text-muted-foreground">{m.bowl_maidens}</td>
-                    <td className="py-2.5 px-4 text-right text-muted-foreground">{m.econ}</td>
-                    <td className="py-2.5 px-4 text-right">
-                      <span className={m.formScore >= 7 ? "text-emerald-400 font-bold" : m.formScore >= 5 ? "text-yellow-400 font-bold" : "text-red-400 font-bold"}>
-                        {m.formScore}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
+      <div className="grid gap-10 lg:grid-cols-2">
+         {/* Annual Intensity Bar Chart */}
+         <div className="p-8 rounded-[2rem] glass border-border/50">
+            <div className="flex items-center gap-3 mb-8">
+               <div className="p-2 bg-primary/10 rounded-lg">
+                  <TrendingUp className="h-4 w-4 text-primary" />
+               </div>
+               <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em]">Annual Deployment Yield</h3>
+            </div>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={yearSummaries}>
+                <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: "bold", fill: "hsl(var(--muted-foreground))" }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: "bold", fill: "hsl(var(--muted-foreground))" }} />
+                <Tooltip
+                  cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                  contentStyle={{ background: "rgba(10, 10, 10, 0.9)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "1.25rem", color: "#fff" }}
+                />
+                <Bar dataKey="wickets" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} barSize={32} />
+              </BarChart>
+            </ResponsiveContainer>
+         </div>
+
+         {/* Detailed Ledger Table */}
+         <div className="p-8 rounded-[2rem] glass border-border/50 overflow-hidden">
+            <div className="flex items-center gap-3 mb-8">
+               <div className="p-2 bg-secondary rounded-lg">
+                  <Activity className="h-4 w-4 text-muted-foreground" />
+               </div>
+               <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em]">Terminal Match Ledger</h3>
+            </div>
+            <div className="overflow-x-auto -mx-8 max-h-[400px] no-scrollbar overflow-y-auto">
+               <table className="w-full">
+                  <thead className="bg-white/5 text-[10px] font-black uppercase tracking-widest text-muted-foreground sticky top-0 z-10">
+                     <tr>
+                        <th className="px-8 py-4 text-left">Match Details</th>
+                        <th className="px-8 py-4 text-right">Figures</th>
+                        <th className="px-8 py-4 text-right">Momentum</th>
+                     </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                     {[...filteredMatches].reverse().map((m, i) => (
+                        <tr key={i} className="hover:bg-white/5 transition-colors group">
+                           <td className="px-8 py-4">
+                              <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">{m.dateFormatted}</p>
+                              <p className="text-xs font-bold truncate max-w-[200px]">{m.opponent}</p>
+                           </td>
+                           <td className="px-8 py-4 text-right">
+                              <span className="font-black text-lg">{m.bowl_wickets}/{m.bowl_runs}</span>
+                              <p className="text-[10px] text-muted-foreground font-bold uppercase">{m.bowl_overs} Ov · {m.econ} EC</p>
+                           </td>
+                           <td className="px-8 py-4 text-right">
+                              <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase ${getFormLabel(m.formScore).color} bg-white/5`}>{m.formScore}</span>
+                           </td>
+                        </tr>
+                     ))}
+                  </tbody>
+               </table>
+            </div>
+         </div>
+      </div>
+    </div>
   );
 }

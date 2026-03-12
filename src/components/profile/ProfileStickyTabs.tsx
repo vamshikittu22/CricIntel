@@ -22,7 +22,7 @@ const tabs: { id: ProfileTab; label: string; icon: React.ReactNode }[] = [
   { id: "bowling", label: "Bowling", icon: <Target className="h-4 w-4" /> },
   { id: "weaknesses", label: "Weaknesses", icon: <ShieldAlert className="h-4 w-4" /> },
   { id: "fielding", label: "Fielding", icon: <Hand className="h-4 w-4" /> },
-  { id: "form", label: "Form", icon: <TrendingUp className="h-4 w-4" /> },
+  { id: "form", label: "Form Index", icon: <TrendingUp className="h-4 w-4" /> },
 ];
 
 export function ProfileStickyTabs({ activeTab, onTabChange }: ProfileStickyTabsProps) {
@@ -33,7 +33,6 @@ export function ProfileStickyTabs({ activeTab, onTabChange }: ProfileStickyTabsP
     setActiveIndex(tabs.findIndex((t) => t.id === activeTab));
   }, [activeTab]);
 
-  // Scroll active tab into view on mobile
   useEffect(() => {
     if (!scrollRef.current) return;
     const activeEl = scrollRef.current.children[activeIndex] as HTMLElement;
@@ -43,11 +42,11 @@ export function ProfileStickyTabs({ activeTab, onTabChange }: ProfileStickyTabsP
   }, [activeIndex]);
 
   return (
-    <div className="sticky top-16 z-30 border-b border-border bg-card/95 backdrop-blur-md">
+    <div className="sticky top-16 z-30 border-b border-white/5 bg-background/50 backdrop-blur-3xl shadow-2xl">
       <div className="container mx-auto px-4">
         <div
           ref={scrollRef}
-          className="flex gap-0 overflow-x-auto no-scrollbar"
+          className="flex gap-2 p-1 overflow-x-auto no-scrollbar scroll-smooth"
         >
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
@@ -55,19 +54,26 @@ export function ProfileStickyTabs({ activeTab, onTabChange }: ProfileStickyTabsP
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
-                className={`relative flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
+                className={`relative flex items-center gap-2 px-6 py-4 text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-300 rounded-xl ${
                   isActive
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "text-white"
+                    : "text-muted-foreground hover:text-white hover:bg-white/5"
                 }`}
               >
-                <span className={isActive ? "text-primary" : ""}>{tab.icon}</span>
+                <span className={`transition-transform duration-300 ${isActive ? "text-primary scale-110" : ""}`}>{tab.icon}</span>
                 {tab.label}
                 {isActive && (
                   <motion.div
-                    layoutId="tab-underline"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full"
-                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                    layoutId="active-nav-glow"
+                    className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent"
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  />
+                )}
+                {isActive && (
+                  <motion.div
+                    layoutId="active-pill"
+                    className="absolute inset-0 bg-primary/10 rounded-xl -z-10"
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
                   />
                 )}
               </button>

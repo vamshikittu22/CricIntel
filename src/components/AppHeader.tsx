@@ -7,56 +7,44 @@ export function AppHeader() {
   const location = useLocation();
   
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-lg">
+    <header className="sticky top-0 z-50 glass">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link to="/" className="flex items-center gap-2.5">
+        <Link to="/" className="flex items-center gap-2.5 group">
           <motion.div
-            className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-heading font-bold text-lg"
-            whileHover={{ scale: 1.05 }}
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary text-primary-foreground font-bold text-xl shadow-lg shadow-primary/20"
+            whileHover={{ scale: 1.05, rotate: 5 }}
           >
             C
           </motion.div>
-          <span className="font-heading text-xl font-bold tracking-tight">
-            Cric<span className="text-primary">Intel</span>
+          <span className="text-xl font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">
+            Cric<span className="text-primary italic">Intel</span>
           </span>
         </Link>
-        <nav className="flex items-center gap-1 text-sm">
-          <Link
-            to="/teams"
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors ${
-              location.pathname === "/teams" 
-                ? "bg-primary/10 text-primary" 
-                : "text-muted-foreground hover:text-foreground hover:bg-accent"
-            }`}
-          >
-            <Users className="h-4 w-4" />
-            Teams
-          </Link>
-          <Link
-            to="/matches"
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors ${
-              location.pathname === "/matches" 
-                ? "bg-primary/10 text-primary" 
-                : "text-muted-foreground hover:text-foreground hover:bg-accent"
-            }`}
-          >
-            <Trophy className="h-4 w-4" />
-            Matches
-          </Link>
-          <Link
-            to="/compare"
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors ${
-              location.pathname === "/compare" 
-                ? "bg-primary/10 text-primary" 
-                : "text-muted-foreground hover:text-foreground hover:bg-accent"
-            }`}
-          >
-            <ArrowLeftRight className="h-4 w-4" />
-            <span className="hidden sm:inline">Compare</span>
-          </Link>
+        <nav className="flex items-center gap-2 text-sm font-medium">
+          {[
+            { to: "/players", icon: Users, label: "Players" },
+            { to: "/teams", icon: Users, label: "Teams" },
+            { to: "/matches", icon: Trophy, label: "Matches" },
+            { to: "/compare", icon: ArrowLeftRight, label: "Compare" },
+          ].map((item) => (
+            <Link
+              key={item.to}
+              to={item.to}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full transition-all duration-300 ${
+                location.pathname === item.to 
+                  ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" 
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+              }`}
+            >
+              <item.icon className="h-4 w-4" />
+              <span className="hidden sm:inline">{item.label}</span>
+            </Link>
+          ))}
+          <div className="h-6 w-px bg-border mx-2" />
           <ThemeToggle />
         </nav>
       </div>
     </header>
   );
 }
+

@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getFlag } from "@/lib/countryFlags";
-import { Clock, TrendingUp, User, UserCheck, Swords, Target, RefreshCw } from "lucide-react";
+import { Clock, TrendingUp, User, UserCheck, Swords, Target, RefreshCw, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -233,16 +233,16 @@ const Index = () => {
     : "";
 
   const renderFeaturedCard = (title: string, players: any[], stat: string, color: string, Icon: React.ElementType) => {
-    const colorMap: Record<string, { bg: string; text: string; border: string; shadow: string }> = {
-      emerald: { bg: "from-emerald-500/20 via-emerald-600/10 to-transparent", text: "text-emerald-400", border: "border-emerald-500/30", shadow: "shadow-emerald-500/20" },
-      orange: { bg: "from-orange-500/20 via-orange-600/10 to-transparent", text: "text-orange-400", border: "border-orange-500/30", shadow: "shadow-orange-500/20" },
-      blue: { bg: "from-blue-500/20 via-blue-600/10 to-transparent", text: "text-blue-400", border: "border-blue-500/30", shadow: "shadow-blue-500/20" },
-      purple: { bg: "from-purple-500/20 via-purple-600/10 to-transparent", text: "text-purple-400", border: "border-purple-500/30", shadow: "shadow-purple-500/20" },
-      red: { bg: "from-red-500/20 via-red-600/10 to-transparent", text: "text-red-400", border: "border-red-500/30", shadow: "shadow-red-500/20" },
-      pink: { bg: "from-pink-500/20 via-pink-600/10 to-transparent", text: "text-pink-400", border: "border-pink-500/30", shadow: "shadow-pink-500/20" },
-      amber: { bg: "from-amber-500/20 via-amber-600/10 to-transparent", text: "text-amber-400", border: "border-amber-500/30", shadow: "shadow-amber-500/20" },
+    const colorMap: Record<string, string> = {
+      emerald: "bg-emerald-500",
+      orange: "bg-orange-500",
+      blue: "bg-blue-500",
+      purple: "bg-purple-500",
+      red: "bg-red-500",
+      pink: "bg-pink-500",
+      amber: "bg-amber-500",
     };
-    const colors = colorMap[color] || colorMap.emerald;
+    const colorClass = colorMap[color] || colorMap.emerald;
     
     const getStatValue = (player: any) => {
       if (stat === "runs") return player.runs?.toLocaleString() + " runs";
@@ -256,79 +256,106 @@ const Index = () => {
     };
 
     return (
-      <div className={`min-w-[260px] flex-shrink-0 bg-gradient-to-br ${colors.bg} border ${colors.border} rounded-xl p-4 shadow-lg hover:${colors.shadow} transition-all duration-300 mx-2`}>
-        <div className="flex items-center gap-2 mb-4">
-          <div className={`p-2 bg-${color}-500 rounded-lg`}>
-            <Icon className="w-4 h-4 text-white" />
+      <div className="min-w-[280px] flex-shrink-0 card-hover p-5 mx-3 rounded-2xl">
+        <div className="flex items-center justify-between mb-5">
+          <div className={`p-2.5 ${colorClass} rounded-xl shadow-lg ring-4 ring-background`}>
+            <Icon className="w-5 h-5 text-white" />
           </div>
-          <div>
-            <h3 className={`text-sm font-bold ${colors.text}`}>{title}</h3>
-            <span className="text-xs text-muted-foreground">({activeFormat})</span>
+          <div className="text-right">
+            <h3 className="text-sm font-bold uppercase tracking-wider">{title}</h3>
+            <span className="text-[10px] text-muted-foreground font-bold">{activeFormat}</span>
           </div>
         </div>
         {players && players.length > 0 ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {players.map((player, index) => (
               <div
                 key={player.player_id}
-                className={`flex items-center gap-3 py-2 cursor-pointer hover:${color}-500/10 rounded-lg px-2 transition-all`}
+                className="group flex items-center gap-3 py-1 cursor-pointer"
                 onClick={() => handlePlayerClick(player.player_id, player.players?.name || "Player", player.players?.country || "")}
               >
-                <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${index === 0 ? 'bg-yellow-500 text-black' : index === 1 ? 'bg-gray-400 text-black' : index === 2 ? 'bg-amber-700 text-white' : 'bg-muted text-muted-foreground'}`}>{index + 1}</span>
-                <div className="flex-1">
-                  <div className="flex justify-between">
-                    <span className="font-medium">{player.players?.name}</span>
-                    <span className="text-xs">{getFlag(player.players?.country || "")}</span>
+                <span className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold transition-colors ${
+                  index === 0 ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' : 
+                  'bg-secondary text-secondary-foreground group-hover:bg-primary group-hover:text-primary-foreground'
+                }`}>
+                  {index + 1}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold truncate text-sm">{player.players?.name}</span>
+                    <span className="text-sm">{getFlag(player.players?.country || "")}</span>
                   </div>
-                  <span className={`text-xs ${colors.text} font-semibold`}>{getStatValue(player)}</span>
+                  <div className="flex justify-between items-center mt-0.5">
+                    <span className="text-xs text-muted-foreground">{player.players?.country}</span>
+                    <span className="text-xs font-bold mono text-primary">{getStatValue(player)}</span>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground text-center">No data available</p>
+          <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+            <RefreshCw className="w-8 h-8 opacity-20 mb-2" />
+            <p className="text-xs font-medium">No data available</p>
+          </div>
         )}
       </div>
     );
   };
 
+
   const renderTopPlayers = (title: string, players: any[], stat: string, label: string, Icon: React.ElementType, direction: "left" | "right") => {
     if (!players || players.length === 0) return null;
-    const scrollClass = direction === "left" ? "animate-scroll-left" : "animate-scroll-right";
 
     return (
-      <div className="mb-8">
-        <div className="container mx-auto px-4 flex items-center gap-2 mb-3">
-          <TrendingUp className="h-4 w-4 text-primary" />
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{title} ({activeFormat})</h2>
-          {periodText && <span className="text-xs text-muted-foreground ml-2">({periodText})</span>}
+      <div className="mb-12">
+        <div className="container mx-auto px-4 flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <TrendingUp className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold tracking-tight">{title}</h2>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest">{activeFormat} Leaderboard {periodText && `• ${periodText}`}</p>
+            </div>
+          </div>
+          <Button variant="ghost" size="sm" className="text-primary font-bold hover:bg-primary/5 rounded-full">
+            View All
+          </Button>
         </div>
-        <div className="overflow-hidden bg-card/40 border-y border-border py-4 shadow-sm">
-          <div className="flex gap-4" style={{ animationName: direction === "left" ? "scroll-left" : "scroll-right", animationDuration: "30s", animationTimingFunction: "linear", animationIterationCount: "infinite", width: `calc(240px * ${players.length * 2})` }}>
+        <div className="overflow-hidden py-4">
+          <div className="flex gap-6 animate-scroll" style={{ animationName: direction === "left" ? "scroll-left" : "scroll-right", animationDuration: "40s", width: `calc(300px * ${players.length * 2})` }}>
             {[...players, ...players].map((p: any, idx: number) => {
               const playerData = p.players;
               if (!playerData) return null;
 
               return (
-                <button
+                <div
                   key={`${p.player_id}-${idx}`}
                   onClick={() => handlePlayerClick(p.player_id, playerData.name || "Player", playerData.country || "")}
-                  className="flex items-center gap-3 px-4 py-2.5 rounded-full border bg-background hover:border-primary/50 hover:shadow-md transition-all shrink-0 min-w-[220px]"
+                  className="flex items-center gap-4 p-4 rounded-2xl card-hover shrink-0 min-w-[280px] group cursor-pointer"
                 >
-                  <span className="text-xl">{getFlag(playerData.country)}</span>
-                  <div className="text-left flex-1 min-w-0">
-                    <div className="text-sm font-bold truncate">
-                      {playerData.name || "Unknown Player"}
-                      {activeFormat === "All" && (
-                        <span className="ml-1 text-[10px] uppercase font-semibold text-muted-foreground">({p.format})</span>
-                      )}
-                    </div>
-                    <div className="text-xs text-primary font-medium flex items-center gap-1.5 mt-0.5">
-                      <Icon className="h-3 w-3" />
-                      {(p[stat] || 0).toLocaleString()} {label}
+                  <div className="relative">
+                    <span className="text-3xl filter grayscale group-hover:grayscale-0 transition-all">{getFlag(playerData.country)}</span>
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-background rounded-full border-2 border-primary flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 bg-primary rounded-full" />
                     </div>
                   </div>
-                </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold truncate group-hover:text-primary transition-colors uppercase tracking-tight">
+                      {playerData.name || "Unknown Player"}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="px-2 py-0.5 rounded-md bg-secondary text-[10px] font-bold text-muted-foreground">
+                        {playerData.country}
+                      </div>
+                      <div className="flex items-center gap-1 text-xs font-bold mono text-primary">
+                        <Icon className="h-3 w-3" />
+                        {(p[stat] || 0).toLocaleString()} {label}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               );
             })}
           </div>
@@ -337,152 +364,183 @@ const Index = () => {
     );
   };
 
+
   return (
-    <div className="min-h-screen bg-background">
-      <style>{`
-        @keyframes scroll {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        .animate-scroll {
-          animation: scroll 40s linear infinite;
-        }
-        .animate-scroll:hover {
-          animation-play-state: paused;
-        }
-      `}</style>
+    <div className="min-h-screen bg-background text-foreground pb-20">
       <AppHeader />
 
+      <main>
         {/* Hero Section */}
-        <section className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.12),transparent_60%)]" />
-          <div className="container relative mx-auto px-4 py-16 md:py-20">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="text-center">
-              <h1 className="text-4xl font-bold tracking-tight md:text-6xl">
-                Cricket Player <span className="text-primary">Analytics</span>
+        <section className="relative pt-20 pb-16 md:pt-32 md:pb-24 overflow-hidden">
+          <div className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80">
+            <div className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-primary to-secondary opacity-20 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem]" style={{ clipPath: "polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)" }}></div>
+          </div>
+          
+          <div className="container relative mx-auto px-4 text-center">
+            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="max-w-3xl mx-auto">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-[10px] font-black tracking-widest mb-6 border border-primary/20 uppercase">
+                <Trophy className="w-3.5 h-3.5" />
+                <span>FAANG-Level Cricket Intelligence</span>
+              </div>
+              <h1 className="text-6xl font-black tracking-tighter sm:text-8xl mb-8 leading-[0.9]">
+                Cric<span className="text-primary italic">Intel</span>. 
               </h1>
-              <p className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground">
-                Ball-by-ball performance insights, tactical intelligence, and data-driven decisions for cricket.
+              <p className="text-xl text-muted-foreground mb-12 leading-relaxed font-medium max-w-2xl mx-auto">
+                Real-time performance analytics and tactical insights. 
+                Everything you need to master the game, powered by data.
               </p>
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }} className="mt-8">
-              <SearchBar />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, delay: 0.3 }} className="max-w-2xl mx-auto">
+              <div className="relative group p-1.5 bg-gradient-to-r from-primary via-secondary to-accent rounded-3xl shadow-2xl transition-all duration-500 hover:shadow-primary/30">
+                <div className="bg-background rounded-[1.25rem]">
+                  <SearchBar />
+                </div>
+              </div>
             </motion.div>
+          </div>
+        </section>
+
+        {/* Highlight Stats */}
+        <section className="container mx-auto px-4 mb-20">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {[
+              { label: "Matches Tracked", value: "10K+", icon: Trophy },
+              { label: "Players Analyzed", value: "5K+", icon: User },
+              { label: "Data Points", value: "1M+", icon: TrendingUp },
+              { label: "Accuracy", value: "99.9%", icon: Target },
+            ].map((stat, i) => (
+              <motion.div 
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className="stat-card glass border-border/50"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <stat.icon className="w-4 h-4 text-primary" />
+                  <span className="label leading-none">{stat.label}</span>
+                </div>
+                <div className="value">{stat.value}</div>
+              </motion.div>
+            ))}
           </div>
         </section>
 
         {/* Recent Searches */}
         {recentSearches.length > 0 && (
-          <section className="container mx-auto px-4 py-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Recent Searches</h2>
+          <section className="container mx-auto px-4 py-8 mb-12">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-1.5 bg-muted rounded-lg">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <h2 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em]">History</h2>
             </div>
-            <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+            <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
               {recentSearches.map((r) => (
-                <button key={r.id} onClick={() => navigate(`/player/${r.id}`)} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card text-sm whitespace-nowrap hover:border-primary/50 transition-all">
-                  <span>{getFlag(r.country)}</span>
-                  {r.name}
+                <button 
+                  key={r.id} 
+                  onClick={() => navigate(`/player/${r.id}`)} 
+                  className="flex items-center gap-3 px-6 py-3 rounded-2xl border border-border bg-card group hover:border-primary hover:bg-primary/5 transition-all duration-300 shadow-sm hover:shadow-md"
+                >
+                  <span className="text-xl group-hover:scale-125 transition-transform">{getFlag(r.country)}</span>
+                  <span className="text-sm font-bold">{r.name}</span>
                 </button>
               ))}
             </div>
           </section>
         )}
 
-        {/* Format & Gender Filters */}
-        <div className="container mx-auto px-4 py-4 flex flex-col gap-4 items-center sm:flex-row sm:justify-center relative">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] uppercase font-bold text-muted-foreground mr-1">Format:</span>
-            {["All", "Test", "ODI", "T20"].map((f) => (
-              <button
-                key={f}
-                onClick={() => setActiveFormat(f)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${activeFormat === f
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary border border-border"
-                  }`}
-              >
-                {f === "T20" ? "T20I" : f}
-              </button>
-            ))}
-          </div>
+        {/* Main Filters & Content */}
+        <div className="sticky top-16 z-40 bg-background/80 backdrop-blur-md border-y border-border py-6 mb-12">
+          <div className="container mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-1 p-1 bg-secondary/50 rounded-2xl border border-border">
+                {["All", "Test", "ODI", "T20"].map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setActiveFormat(f)}
+                    className={`px-5 py-2 rounded-xl text-xs font-black transition-all uppercase tracking-tighter ${activeFormat === f
+                      ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                      }`}
+                  >
+                    {f === "T20" ? "T20I" : f}
+                  </button>
+                ))}
+              </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] uppercase font-bold text-muted-foreground mr-1">Gender:</span>
-            {genderFilters.map((g) => (
-              <button
-                key={g.value}
-                onClick={() => setGenderFilter(g.value as "all" | "male" | "female")}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 ${genderFilter === g.value
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary border border-border"
-                  }`}
-              >
-                {g.value === "male" && <User className="h-3 w-3" />}
-                {g.value === "female" && <UserCheck className="h-3 w-3" />}
-                {g.label}
-              </button>
-            ))}
+              <div className="flex items-center gap-1 p-1 bg-secondary/50 rounded-2xl border border-border">
+                {genderFilters.map((g) => (
+                  <button
+                    key={g.value}
+                    onClick={() => setGenderFilter(g.value as "all" | "male" | "female")}
+                    className={`px-5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 uppercase tracking-tighter ${genderFilter === g.value
+                      ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                      }`}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <button 
+              onClick={() => {
+                safeStorage.removeItem("cricintel_stats_cache");
+                refetch();
+              }}
+              className={`p-3 rounded-2xl bg-secondary hover:bg-primary/10 transition-colors group ${statsLoading ? "animate-spin" : ""}`}
+              title="Refresh Data"
+            >
+              <RefreshCw className="h-5 w-5 text-primary group-hover:rotate-180 transition-transform duration-500" />
+            </button>
           </div>
-          
-          <button 
-            onClick={() => {
-              safeStorage.removeItem("cricintel_stats_cache");
-              refetch();
-            }}
-            className="sm:absolute sm:right-4 p-2 rounded-full hover:bg-secondary text-muted-foreground transition-colors"
-            title="Refresh Data"
-          >
-            <RefreshCw className={`h-4 w-4 ${statsLoading ? "animate-spin" : ""}`} />
-          </button>
         </div>
 
-        {/* Featured Players - Infinite Scrolling Banner */}
-        <div className="container mx-auto px-4 py-6 overflow-hidden">
+        {/* Featured Infinite Scroll Section */}
+        <section className="mb-20 overflow-hidden py-10">
+          <div className="container mx-auto px-4 mb-8">
+             <h2 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] flex items-center gap-2">
+               <TrendingUp className="w-4 h-4" />
+               Featured Analytics
+             </h2>
+          </div>
           <div className="relative">
-            <style>{`
-              @keyframes infiniteScroll {
-                0% { transform: translateX(0); }
-                100% { transform: translateX(-50%); }
-              }
-              .scroll-container {
-                display: flex;
-                width: fit-content;
-                animation: infiniteScroll 60s linear infinite;
-              }
-              .scroll-container:hover {
-                animation-play-state: paused;
-              }
-            `}</style>
-            <div className="scroll-container">
-              {/* First set of cards */}
-              {renderFeaturedCard("Top Run Scorers", processedData?.topScorers || [], "runs", "emerald", TrendingUp)}
-              {renderFeaturedCard("Most Boundaries", processedData?.mostBoundaries || [], "boundaries", "orange", Target)}
-              {renderFeaturedCard("Highest Average", processedData?.highestAverage || [], "average", "blue", User)}
-              {renderFeaturedCard("Best Strike Rate", processedData?.bestStrikeRate || [], "strike_rate", "purple", Clock)}
-              {renderFeaturedCard("Most Wickets", processedData?.mostWickets || [], "wickets", "red", Swords)}
-              {renderFeaturedCard("Best Bowling Avg", processedData?.bestBowlingAvg || [], "bowl_average", "pink", Target)}
-              {renderFeaturedCard("Most 5-Fors", mostFiveWicketHauls || [], "count", "amber", Swords)}
+            <div className="scroll-container animate-scroll">
+              {/* Cards set 1 */}
+              {renderFeaturedCard("Run Machines", processedData?.topScorers || [], "runs", "emerald", TrendingUp)}
+              {renderFeaturedCard("Boundary Queens/Kings", processedData?.mostBoundaries || [], "boundaries", "orange", Target)}
+              {renderFeaturedCard("Consistency Kings", processedData?.highestAverage || [], "average", "blue", User)}
+              {renderFeaturedCard("Power Hitters", processedData?.bestStrikeRate || [], "strike_rate", "purple", Clock)}
+              {renderFeaturedCard("Wicket Takers", processedData?.mostWickets || [], "wickets", "red", Swords)}
+              {renderFeaturedCard("Bowling Prowess", processedData?.bestBowlingAvg || [], "bowl_average", "pink", Target)}
+              {renderFeaturedCard("Match Winners", mostFiveWicketHauls || [], "count", "amber", Swords)}
               
               {/* Duplicate set for infinite loop */}
-              {renderFeaturedCard("Top Run Scorers", processedData?.topScorers || [], "runs", "emerald", TrendingUp)}
-              {renderFeaturedCard("Most Boundaries", processedData?.mostBoundaries || [], "boundaries", "orange", Target)}
-              {renderFeaturedCard("Highest Average", processedData?.highestAverage || [], "average", "blue", User)}
-              {renderFeaturedCard("Best Strike Rate", processedData?.bestStrikeRate || [], "strike_rate", "purple", Clock)}
-              {renderFeaturedCard("Most Wickets", processedData?.mostWickets || [], "wickets", "red", Swords)}
-              {renderFeaturedCard("Best Bowling Avg", processedData?.bestBowlingAvg || [], "bowl_average", "pink", Target)}
-              {renderFeaturedCard("Most 5-Fors", mostFiveWicketHauls || [], "count", "amber", Swords)}
+              {renderFeaturedCard("Run Machines", processedData?.topScorers || [], "runs", "emerald", TrendingUp)}
+              {renderFeaturedCard("Boundary Queens/Kings", processedData?.mostBoundaries || [], "boundaries", "orange", Target)}
+              {renderFeaturedCard("Consistency Kings", processedData?.highestAverage || [], "average", "blue", User)}
+              {renderFeaturedCard("Power Hitters", processedData?.bestStrikeRate || [], "strike_rate", "purple", Clock)}
+              {renderFeaturedCard("Wicket Takers", processedData?.mostWickets || [], "wickets", "red", Swords)}
+              {renderFeaturedCard("Bowling Prowess", processedData?.bestBowlingAvg || [], "bowl_average", "pink", Target)}
+              {renderFeaturedCard("Match Winners", mostFiveWicketHauls || [], "count", "amber", Swords)}
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Top Batters */}
-              {renderTopPlayers("Top Batters", processedData?.topBatters || [], "runs", "Runs", Swords, "left")}
+        {/* Leaderboards */}
+        <section className="container mx-auto px-4">
+          <div className="grid grid-cols-1 lg:grid-cols-1 gap-12">
+            {renderTopPlayers("Top Batters", processedData?.topBatters || [], "runs", "Runs", Swords, "left")}
+            {renderTopPlayers("Top Bowlers", processedData?.topBowlers || [], "wickets", "Wickets", Target, "right")}
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+};
 
-              {renderTopPlayers("Top Bowlers", processedData?.topBowlers || [], "wickets", "Wickets", Target, "right")}
-            </div>
-    );
-  };
 
   export default Index;

@@ -19,160 +19,133 @@ const formats = ["T20I", "T20", "ODI", "Test", "IPL"] as const;
 export function PlayerProfileCard({ player, stats, format, onFormatChange, isLoading }: PlayerProfileCardProps) {
   if (isLoading || !player) {
     return (
-      <Card className="overflow-hidden border-border shadow-sm">
-        <CardContent className="p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <Skeleton className="h-20 w-20 rounded-2xl" />
-              <div className="space-y-2">
-                <Skeleton className="h-8 w-48" />
-                <Skeleton className="h-4 w-32" />
-              </div>
-            </div>
-            <Skeleton className="h-8 w-32 rounded-full" />
+      <div className="glass rounded-3xl p-8 animate-pulse border border-border">
+        <div className="flex items-center gap-6">
+          <Skeleton className="h-24 w-24 rounded-3xl" />
+          <div className="space-y-3">
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-5 w-48" />
           </div>
-          <div className="grid grid-cols-4 gap-3 mt-6">
-            {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-16 rounded-lg" />
-            ))}
-          </div>
-          <Skeleton className="h-12 w-full mt-6 rounded-lg" />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   const calculateForm = () => {
     if (!stats) return 0;
-    
-    // Bowler specialized scoring
     if (player.role === "bowl") {
-      const econScore = Math.max(0, (9 - (stats.econ || 9)) * 1.2); // Better than 9 econ is good
+      const econScore = Math.max(0, (9 - (stats.econ || 9)) * 1.2);
       const srScore = stats.bowl_strike_rate ? Math.max(0, (35 - stats.bowl_strike_rate) / 3) : 0;
       const fiveW = (stats.bowl_five_wickets || 0) * 2.5;
       return Math.min(10, Math.max(1, econScore + srScore + fiveW));
     }
-    
-    // All-rounder or Batter scoring
     const batScore = (stats.strike_rate || 0) / 25 + (stats.average || 0) / 12 + (stats.hundreds || 0) * 2;
-    
     if (player.role === "allrounder") {
       const bowlScore = Math.max(0, (9 - (stats.econ || 9)) * 1.0) + (stats.bowl_strike_rate ? Math.max(0, (40 - stats.bowl_strike_rate) / 5) : 0);
       return Math.min(10, Math.max(1, (batScore * 0.6) + (bowlScore * 0.4)));
     }
-    
     return Math.min(10, Math.max(1, batScore));
   };
 
   const formScore = calculateForm();
-  
   const formStatus = formScore >= 8 ? "Elite" : formScore >= 6.5 ? "Strong" : formScore >= 4 ? "Stable" : "Poor";
-  const formBadgeColor = formScore >= 8 
-    ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" 
-    : formScore >= 6.5 
-      ? "bg-amber-500/10 text-amber-500 border-amber-500/20" 
-      : "bg-rose-500/10 text-rose-500 border-rose-500/20";
+  const formColor = formScore >= 8 ? "bg-success" : formScore >= 5 ? "bg-warning" : "bg-destructive";
 
   const kpis = [
     { label: "Matches", value: stats?.matches ?? "—" },
     { label: "Runs", value: stats?.runs ?? "—" },
     { label: "Average", value: stats?.average ?? "—" },
-    { label: "SR", value: stats?.strike_rate ?? "—" },
+    { label: "Strike Rate", value: stats?.strike_rate ?? "—" },
   ];
 
   const roleLabel = player.role === "allrounder" ? "All-Rounder" : player.role === "bowl" ? "Bowler" : "Batter";
-  const roleColor = player.role === "allrounder" ? "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" : player.role === "bowl" ? "bg-blue-500/10 text-blue-500 border-blue-500/20" : "bg-orange-500/10 text-orange-500 border-orange-500/20";
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-      <Card className="overflow-hidden border-border bg-card/50 backdrop-blur-sm shadow-sm ring-1 ring-white/5">
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row items-start justify-between gap-6">
-            <div className="flex items-center gap-5">
-              <div className="group relative">
-                <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-muted text-4xl ring-4 ring-primary/5 shadow-inner transition-transform group-hover:scale-105">
+    <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+      <div className="glass rounded-[2rem] p-8 md:p-10 relative overflow-hidden shadow-2xl shadow-primary/10">
+        {/* Background glow */}
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 bg-primary/10 blur-[100px] rounded-full" />
+        <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-60 h-60 bg-secondary/20 blur-[80px] rounded-full" />
+
+        <div className="relative flex flex-col lg:flex-row items-center lg:items-end justify-between gap-10">
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-8 flex-1">
+            <div className="relative">
+              <div className="w-28 h-28 md:w-32 md:h-32 rounded-[2.5rem] bg-gradient-to-br from-primary via-secondary to-accent p-1 shadow-2xl">
+                <div className="w-full h-full rounded-[2.25rem] bg-card flex items-center justify-center text-6xl shadow-inner">
                   {getFlag(player.country)}
                 </div>
-                <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-background border border-border text-[10px] font-bold shadow-sm">
-                  ✓
-                </div>
               </div>
+              <div className="absolute -bottom-2 -right-2 bg-success text-success-foreground p-1.5 rounded-full border-4 border-background shadow-lg">
+                <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
+              </div>
+            </div>
+
+            <div className="text-center md:text-left space-y-4">
               <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl font-bold md:text-3xl tracking-tight text-foreground">
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+                  <h1 className="text-4xl md:text-5xl font-black tracking-tighter uppercase whitespace-nowrap">
                     {player.name}
                   </h1>
-                  <Badge variant="outline" className={`${roleColor} px-2.5 py-0.5 rounded-full font-semibold border`}>
+                  <span className="px-4 py-1.5 rounded-full bg-primary/10 text-primary text-[10px] font-black tracking-widest uppercase border border-primary/20">
                     {roleLabel}
-                  </Badge>
-                </div>
-                
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1.5 font-medium text-foreground/80">
-                    <span className="text-base">{getFlag(player.country)}</span>
-                    {player.country}
-                  </span>
-                  <span className="h-1 w-1 rounded-full bg-border" />
-                  <span className="font-medium">
-                    {player.debut_year && player.last_played_year 
-                      ? `${player.debut_year} — ${player.last_played_year}` 
-                      : player.debut_year || "Career N/A"}
                   </span>
                 </div>
-
-                <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                  {player.formats_played?.map((f) => (
-                    <Badge key={f} variant="secondary" className="px-2 py-0 h-5 text-[10px] font-bold uppercase tracking-wider bg-primary/5 hover:bg-primary/10 transition-colors">
-                      {f}
-                    </Badge>
-                  ))}
+                <div className="flex items-center justify-center md:justify-start gap-3 text-muted-foreground font-bold text-sm tracking-tight uppercase">
+                  <span>{player.country}</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-border" />
+                  <span>{player.debut_year} — PRESENT</span>
                 </div>
               </div>
-            </div>
 
-            <div className="flex shrink-0 rounded-full border border-border/50 bg-muted/50 p-1 shadow-inner self-center md:self-start">
-              {formats.map((f) => (
-                <button
-                  key={f}
-                  onClick={() => onFormatChange(f)}
-                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
-                    format === f
-                      ? "bg-primary text-primary-foreground shadow-lg ring-1 ring-primary/20 scale-105"
-                      : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                  }`}
-                >
-                  {f === "T20" ? "T20 (Dom)" : f}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
-            {kpis.map((kpi) => (
-              <div key={kpi.label} className="group flex flex-col items-center justify-center rounded-xl bg-muted/30 border border-border/40 p-3 text-center transition-all hover:bg-muted/50 hover:border-primary/20">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{kpi.label}</p>
-                <p className="mt-1 text-2xl font-black tabular-nums">{kpi.value}</p>
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
+                {player.formats_played?.map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => onFormatChange(f)}
+                    className={`px-6 py-2 rounded-2xl text-xs font-black transition-all uppercase tracking-tighter border ${
+                      format === f
+                        ? "bg-primary text-primary-foreground border-primary shadow-xl shadow-primary/20 scale-105"
+                        : "bg-secondary/50 text-muted-foreground border-border hover:border-primary/50 hover:text-foreground hover:bg-secondary"
+                    }`}
+                  >
+                    {f === "T20" ? "T20 (Dom)" : f}
+                  </button>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
 
-          <div className="mt-8 pt-6 border-t border-border/40">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Active Form</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${formBadgeColor}`}>
-                  {stats ? formStatus : "N/A"}
-                </span>
-              </div>
-              <span className="text-xs font-black tabular-nums">{formScore > 0 ? formScore.toFixed(1) : "—"}/10</span>
-            </div>
-            <Progress 
-              value={formScore * 10} 
-              className="h-2 bg-muted/50" 
-            />
+          <div className="flex flex-col items-center lg:items-end gap-6 w-full lg:w-auto">
+             <div className="w-full lg:w-64 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Active Form</span>
+                  <span className="text-xs font-black mono text-primary uppercase">{formStatus}</span>
+                </div>
+                <div className="h-3 bg-secondary/50 rounded-full overflow-hidden p-0.5 border border-border">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${formScore * 10}%` }}
+                    className={`h-full rounded-full ${formColor} shadow-lg shadow-current/20`}
+                    transition={{ duration: 1, ease: "easeOut" }}
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <span className="text-[10px] font-black mono text-muted-foreground">{formScore.toFixed(1)} / 10.0</span>
+                </div>
+             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-12 bg-white/5 rounded-[1.5rem] p-4 border border-white/10">
+          {kpis.map((kpi, i) => (
+            <div key={kpi.label} className="flex flex-col items-center justify-center p-4">
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">{kpi.label}</span>
+              <span className="text-3xl font-black mono tracking-tighter text-foreground">{kpi.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </motion.div>
   );
 }
+
