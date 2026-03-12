@@ -85,10 +85,19 @@ export interface CricsheetMatch {
 
 export function mapMatchTypeToFormat(matchType: string, eventName?: string): string {
   const lower = matchType.toLowerCase();
-  if (eventName && eventName.toLowerCase().includes("indian premier league")) return "IPL";
-  if (eventName && eventName.toLowerCase().includes("ipl")) return "IPL";
+  const lowerEvent = (eventName || "").toLowerCase();
+  
+  if (lowerEvent.includes("indian premier league")) return "IPL";
+  if (lowerEvent.includes("ipl")) return "IPL";
   if (lower.includes("test")) return "Test";
   if (lower.includes("odi")) return "ODI";
-  if (lower.includes("t20")) return "T20I";
+  
+  if (lower.includes("t20")) {
+    // If it's a T20 and not explicitly 'International', we check for domestic markers
+    // or known leagues. For now, common pattern: 'T20' is domestic, 'T20I' is international.
+    if (lower.includes("t20i") || lower.includes("international")) return "T20I";
+    return "T20";
+  }
+  
   return matchType;
 }

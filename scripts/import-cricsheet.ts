@@ -1,11 +1,5 @@
 /**
  * Cricsheet JSON → Supabase ETL script
- *
- * Usage:
- *   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... npx tsx scripts/import-cricsheet.ts [dataDir]
- *
- * Default dataDir: ./data
- * Expects subfolders like data/odi, data/t20i, data/test, data/ipl with .json files.
  */
 
 import "dotenv/config";
@@ -15,7 +9,6 @@ import * as path from "path";
 import type {
   CricsheetMatch,
   CricsheetDelivery,
-  CricsheetOver,
 } from "../src/lib/cricsheet";
 import { mapMatchTypeToFormat } from "../src/lib/cricsheet";
 
@@ -30,6 +23,30 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ── Helpers ─────────────────────────────────────────
+
+function getBowlerType(name: string): "pace" | "spin" {
+  const paceKeywords = ["fast", "pace", "seam", "swing", "medium"];
+  const spinKeywords = ["spin", "slow", "off-break", "leg-break", "orthodox", "unorthodox"];
+  
+  const nameLower = name.toLowerCase();
+  // Standard list of spinners if name matching is too hard, but let's default to pace
+  const knownSpinners = ["rashid khan", "ashwin", "chahal", "shamsi", "maharaj", "zampa", "kuldeep", "jadeja", "narine", "shakib", "mujeeb", "santner", "ish sodhi"];
+  if (knownSpinners.some(s => nameLower.includes(s))) return "spin";
+  
+  return "pace";
+}
+
+function getPhase(format: string, over: number): "powerplay" | "middle" | "death" {
+  if (format === "T20I" || format === "IPL" || format === "T20") {
+    if (over < 6) return "powerplay";
+    if (over < 15) return "middle";
+    return "death";
+  } else {
+    if (over < 10) return "powerplay";
+    if (over < 40) return "middle";
+    return "death";
+  }
+}
 
 function readJsonFiles(dir: string): string[] {
   const results: string[] = [];
@@ -46,331 +63,235 @@ function readJsonFiles(dir: string): string[] {
 }
 
 async function upsertBatch(table: string, rows: any[], chunkSize = 100) {
+  if (rows.length === 0) return;
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize);
-    const { error } = await supabase.from(table).upsert(chunk, { onConflict: table === "players" ? "id" : undefined });
-    if (error) {
-      console.error(`  Error upserting ${table} chunk ${i}:`, error.message);
-    }
+    const { error } = await supabase.from(table).upsert(chunk, { 
+      onConflict: table === "players" ? "id" : undefined 
+    });
+    if (error) console.error(`  Error upserting ${table} chunk ${i}:`, error.message);
   }
 }
 
-// ── Per-match aggregation ───────────────────────────
-
-interface BatAgg {
-  runs: number;
-  balls: number;
-  fours: number;
-  sixes: number;
-  dismissalKind: string | null;
-  notOut: boolean;
-}
-
-interface BowlAgg {
-  ballsBowled: number;
-  runsConceded: number;
-  wickets: number;
-  overSet: Set<number>;
-  maidenOvers: Map<number, number>; // over -> runs in that over
-}
+interface BatAgg { runs: number; balls: number; fours: number; sixes: number; dismissalKind: string | null; notOut: boolean; }
+interface BowlAgg { ballsBowled: number; runsConceded: number; wickets: number; overSet: Set<number>; maidenOvers: Map<number, number>; }
+interface PhaseAgg { bat_runs: number; bat_balls: number; bat_fours: number; bat_sixes: number; bat_dismissals: number; bowl_balls: number; bowl_runs: number; bowl_wickets: number; catches: number; run_outs: number; }
+interface VsTypeAgg { bat_runs: number; bat_balls: number; bat_dismissals: number; }
+interface FielderAgg { catches: number; stumpings: number; run_outs: number; }
 
 function processMatch(match: CricsheetMatch, matchId: string) {
   const info = match.info;
   const format = mapMatchTypeToFormat(info.match_type, info.event?.name);
   const registry = info.registry.people;
-
-  // Build name → id map
   const nameToId: Record<string, string> = {};
-  for (const [name, id] of Object.entries(registry)) {
-    nameToId[name] = id;
-  }
+  for (const [name, id] of Object.entries(registry)) nameToId[name] = id;
 
-  // Build player rows
-  const playerRows: { id: string; name: string; country: string; gender: string }[] = [];
+  const playerRows: any[] = [];
+  const playerTeam = new Map<string, string>();
   for (const [team, names] of Object.entries(info.players)) {
     for (const name of names) {
       const pid = nameToId[name];
       if (pid) {
         playerRows.push({ id: pid, name, country: team, gender: info.gender || "male" });
+        playerTeam.set(pid, team);
       }
     }
   }
 
-  // Match row
-  const outcome = info.outcome || {};
-  const matchRow = {
-    id: matchId,
-    format,
-    match_type_number: info.match_type_number ?? null,
-    season: info.season != null ? String(info.season) : null,
-    match_date: info.dates[0],
-    city: info.city ?? null,
-    venue: info.venue ?? "",
-    event_name: info.event?.name ?? null,
-    match_number: info.event?.match_number ?? null,
-    team_type: info.team_type ?? null,
-    team1: info.teams[0],
-    team2: info.teams[1],
-    toss_winner: info.toss?.winner ?? null,
-    toss_decision: info.toss?.decision ?? null,
-    result: outcome.result ?? (outcome.winner ? `${outcome.winner} won` : null),
-    winner: outcome.winner ?? null,
-    winner_margin_runs: outcome.by?.runs ?? null,
-    winner_margin_wickets: outcome.by?.wickets ?? null,
-    balls_per_over: info.balls_per_over,
-    overs: info.overs,
-    gender: info.gender || "male",
-  };
+  const batting = new Map<string, BatAgg>(); 
+  const bowling = new Map<string, BowlAgg>();
+  const phaseStats = new Map<string, PhaseAgg>(); 
+  const vsTypeStats = new Map<string, VsTypeAgg>();
+  const fielding = new Map<string, FielderAgg>();
 
-  // Aggregate deliveries
-  const batting = new Map<string, BatAgg>(); // key: `${playerId}_${inningIdx}`
-  const bowling = new Map<string, BowlAgg>(); // key: `${playerId}_${inningIdx}`
-  const playerTeam = new Map<string, string>();
-  const inningTeams = new Map<number, string>();
-
-  for (const [team, names] of Object.entries(info.players)) {
-    for (const name of names) {
-      const pid = nameToId[name];
-      if (pid) playerTeam.set(pid, team);
-    }
-  }
-
-  for (const [inningIdx, innings] of match.innings.entries()) {
-    inningTeams.set(inningIdx + 1, innings.team);
-    
-    for (const over of innings.overs) {
-      for (const del of over.deliveries) {
+  match.innings.forEach((innings, inningIdx) => {
+    const inningNum = inningIdx + 1;
+    innings.overs.forEach(over => {
+      const phase = getPhase(format, over.over);
+      over.deliveries.forEach(del => {
         const batterId = nameToId[del.batter];
         const bowlerId = nameToId[del.bowler];
-        if (!batterId || !bowlerId) continue;
+        if (!batterId || !bowlerId) return;
 
         const isWide = !!del.extras?.wides;
         const isNoBall = !!del.extras?.noballs;
+        const bowlerType = getBowlerType(del.bowler);
 
-        const batKey = `${batterId}_${inningIdx + 1}`;
-        const bowlKey = `${bowlerId}_${inningIdx + 1}`;
+        const batKey = `${batterId}_${inningNum}`;
+        const bowlKey = `${bowlerId}_${inningNum}`;
+        const phaseKey = `${batterId}_${format}_${phase}`;
+        const bowlPhaseKey = `${bowlerId}_${format}_${phase}`;
+        const vsTypeKey = `${batterId}_${format}_${bowlerType}`;
 
-        // Batting
-        if (!batting.has(batKey)) {
-          batting.set(batKey, { runs: 0, balls: 0, fours: 0, sixes: 0, dismissalKind: null, notOut: true });
-        }
+        if (!batting.has(batKey)) batting.set(batKey, { runs: 0, balls: 0, fours: 0, sixes: 0, dismissalKind: null, notOut: true });
+        if (!bowling.has(bowlKey)) bowling.set(bowlKey, { ballsBowled: 0, runsConceded: 0, wickets: 0, overSet: new Set(), maidenOvers: new Map() });
+        if (!phaseStats.has(phaseKey)) phaseStats.set(phaseKey, { bat_runs: 0, bat_balls: 0, bat_fours: 0, bat_sixes: 0, bat_dismissals: 0, bowl_balls: 0, bowl_runs: 0, bowl_wickets: 0, catches: 0, run_outs: 0 });
+        if (!phaseStats.has(bowlPhaseKey)) phaseStats.set(bowlPhaseKey, { bat_runs: 0, bat_balls: 0, bat_fours: 0, bat_sixes: 0, bat_dismissals: 0, bowl_balls: 0, bowl_runs: 0, bowl_wickets: 0, catches: 0, run_outs: 0 });
+        if (!vsTypeStats.has(vsTypeKey)) vsTypeStats.set(vsTypeKey, { bat_runs: 0, bat_balls: 0, bat_dismissals: 0 });
+
         const bat = batting.get(batKey)!;
-        bat.runs += del.runs.batter;
-        if (!isWide && !isNoBall) bat.balls++; // only facing legal deliveries counts as balls faced generally, but in this specific parser logic earlier `isWide` was used
-        if (del.runs.batter === 4) bat.fours++;
-        if (del.runs.batter === 6) bat.sixes++;
-
-        // Bowling 
-        if (!bowling.has(bowlKey)) {
-          bowling.set(bowlKey, { ballsBowled: 0, runsConceded: 0, wickets: 0, overSet: new Set(), maidenOvers: new Map() });
-        }
         const bowl = bowling.get(bowlKey)!;
-        bowl.runsConceded += del.runs.total;
-        if (!isWide && !isNoBall) {
-          bowl.ballsBowled++;
-          bowl.overSet.add(over.over);
+        const pStat = phaseStats.get(phaseKey)!;
+        const bpStat = phaseStats.get(bowlPhaseKey)!;
+        const vStat = vsTypeStats.get(vsTypeKey)!;
+
+        bat.runs += del.runs.batter;
+        if (!isWide) {
+          bat.balls++;
+          pStat.bat_runs += del.runs.batter; pStat.bat_balls++;
+          vStat.bat_runs += del.runs.batter; vStat.bat_balls++;
+          if (del.runs.batter === 4) { bat.fours++; pStat.bat_fours++; }
+          if (del.runs.batter === 6) { bat.sixes++; pStat.bat_sixes++; }
         }
 
-        // Track runs per over for maidens
-        const overRuns = bowl.maidenOvers.get(over.over) ?? 0;
-        bowl.maidenOvers.set(over.over, overRuns + del.runs.total);
+        bowl.runsConceded += del.runs.total;
+        bpStat.bowl_runs += del.runs.total;
+        if (!isWide && !isNoBall) { bowl.ballsBowled++; bpStat.bowl_balls++; }
 
-        // Wickets
         if (del.wickets) {
-          for (const w of del.wickets) {
+          del.wickets.forEach(w => {
             const outId = nameToId[w.player_out];
             if (outId) {
-               const outKey = `${outId}_${inningIdx + 1}`;
-               if (batting.has(outKey)) {
-                 batting.get(outKey)!.dismissalKind = w.kind;
-                 batting.get(outKey)!.notOut = false;
-               }
+              const outKey = `${outId}_${inningNum}`;
+              if (batting.has(outKey)) {
+                batting.get(outKey)!.dismissalKind = w.kind;
+                batting.get(outKey)!.notOut = false;
+                const outPhaseKey = `${outId}_${format}_${phase}`;
+                if (phaseStats.has(outPhaseKey)) phaseStats.get(outPhaseKey)!.bat_dismissals++;
+                vStat.bat_dismissals++;
+              }
             }
-            // Credit bowler for non-run-out wickets
-            if (w.kind !== "run out" && w.kind !== "retired hurt" && w.kind !== "retired not out" && w.kind !== "obstructing the field") {
-              bowl.wickets++;
+            if (w.kind !== "run out" && w.kind !== "retired" && w.kind !== "absent hurt") {
+              bowl.wickets++; bpStat.bowl_wickets++;
             }
-          }
+            // Fielding stats
+            if (w.fielders) {
+              w.fielders.forEach(f => {
+                const fId = nameToId[f.name];
+                if (fId) {
+                  if (!fielding.has(fId)) fielding.set(fId, { catches: 0, stumpings: 0, run_outs: 0 });
+                  const fst = fielding.get(fId)!;
+                  if (w.kind === "caught") fst.catches++;
+                  if (w.kind === "stumped") fst.stumpings++;
+                  if (w.kind === "run out") fst.run_outs++;
+                  
+                  // Also add to phase stats for the fielder
+                  const fPhaseKey = `${fId}_${format}_${phase}`;
+                  if (!phaseStats.has(fPhaseKey)) phaseStats.set(fPhaseKey, { bat_runs: 0, bat_balls: 0, bat_fours: 0, bat_sixes: 0, bat_dismissals: 0, bowl_balls: 0, bowl_runs: 0, bowl_wickets: 0, catches: 0, run_outs: 0 });
+                  if (w.kind === "caught") phaseStats.get(fPhaseKey)!.catches++;
+                  if (w.kind === "run out") phaseStats.get(fPhaseKey)!.run_outs++;
+                }
+              });
+            }
+          });
         }
-      }
-    }
-  }
+      });
+    });
+  });
 
-  // Build match_player_stats rows
-  const statsRows: any[] = [];
-  const allPlayerKeys = new Set([...batting.keys(), ...bowling.keys()]);
-
-  for (const key of allPlayerKeys) {
-    const [pid, inningStr] = key.split("_");
-    const inningNum = parseInt(inningStr, 10);
+  const statsRows = Array.from(new Set([...batting.keys(), ...bowling.keys()])).map(key => {
+    const [pid, inn] = key.split("_");
     const bat = batting.get(key);
     const bowl = bowling.get(key);
-    const bowlOvers = bowl ? bowl.ballsBowled / 6 : 0;
-    const bowlMaidens = bowl ? [...bowl.maidenOvers.values()].filter(r => r === 0).length : 0;
-    const bowlEcon = bowl && bowlOvers > 0 ? +(bowl.runsConceded / bowlOvers).toFixed(2) : 0;
-
-    statsRows.push({
-      match_id: matchId,
-      player_id: pid,
-      inning: inningNum,
+    return {
+      match_id: matchId, player_id: pid, inning: parseInt(inn),
       team: playerTeam.get(pid) || "",
-      is_batter: !!bat && bat.balls > 0,
-      is_bowler: !!bowl && bowl.ballsBowled > 0,
-      bat_runs: bat?.runs ?? 0,
-      bat_balls: bat?.balls ?? 0,
-      bat_fours: bat?.fours ?? 0,
-      bat_sixes: bat?.sixes ?? 0,
-      bat_dismissal_kind: bat?.dismissalKind ?? null,
-      bat_not_out: bat?.notOut ?? true,
-      bowl_overs: +bowlOvers.toFixed(1),
-      bowl_maidens: bowlMaidens,
-      bowl_runs: bowl?.runsConceded ?? 0,
-      bowl_wickets: bowl?.wickets ?? 0,
-      bowl_econ: bowlEcon,
-    });
+      is_batter: !!bat && bat.balls > 0, is_bowler: !!bowl && bowl.ballsBowled > 0,
+      bat_runs: bat?.runs ?? 0, bat_balls: bat?.balls ?? 0,
+      bat_fours: bat?.fours ?? 0, bat_sixes: bat?.sixes ?? 0,
+      bat_dismissal_kind: bat?.dismissalKind ?? null, bat_not_out: bat?.notOut ?? true,
+      bowl_overs: bowl ? +(bowl.ballsBowled / 6).toFixed(1) : 0,
+      bowl_runs: bowl?.runsConceded ?? 0, bowl_wickets: bowl?.wickets ?? 0,
+      bowl_econ: bowl ? +(bowl.runsConceded / (bowl.ballsBowled / 6)).toFixed(2) : 0,
+    };
+  });
+
+  return { matchRow: { id: matchId, format, match_date: info.dates[0], venue: info.venue, team1: info.teams[0], team2: info.teams[1], result: info.outcome?.result ?? null, gender: info.gender || "male" }, playerRows, statsRows, phaseStats, vsTypeStats, fielding, format };
+}
+
+async function main() {
+  const dir = process.argv[2] || "./data";
+  const files = readJsonFiles(dir);
+  if (files.length === 0) return;
+
+  const allStats: any[] = [];
+  const globalPhase = new Map<string, PhaseAgg>();
+  const globalVsType = new Map<string, VsTypeAgg>();
+  const globalFielding = new Map<string, FielderAgg>(); // pid_format
+  const playerMeta = new Map<string, any>();
+
+  let count = 0;
+  for (const file of files) {
+    try {
+      count++;
+      if (count % 50 === 0) console.log(`Processing file ${count}/${files.length}...`);
+      const match: CricsheetMatch = JSON.parse(fs.readFileSync(file, "utf-8"));
+      const { matchRow, playerRows, statsRows, phaseStats, vsTypeStats, fielding, format } = processMatch(match, path.basename(file, ".json"));
+
+      await upsertBatch("players", playerRows);
+      await supabase.from("matches").upsert([matchRow]);
+      await upsertBatch("match_player_stats", statsRows);
+
+      statsRows.forEach(s => allStats.push({ ...s, format }));
+      
+      // Global merging
+      phaseStats.forEach((v, k) => {
+        if (!globalPhase.has(k)) globalPhase.set(k, { bat_runs: 0, bat_balls: 0, bat_fours: 0, bat_sixes: 0, bat_dismissals: 0, bowl_balls: 0, bowl_runs: 0, bowl_wickets: 0, catches: 0, run_outs: 0 });
+        const g = globalPhase.get(k)!;
+        Object.keys(v).forEach(key => (g as any)[key] += (v as any)[key]);
+      });
+
+      fielding.forEach((v, pid) => {
+        const key = `${pid}_${format}`;
+        if (!globalFielding.has(key)) globalFielding.set(key, { catches: 0, stumpings: 0, run_outs: 0 });
+        const g = globalFielding.get(key)!;
+        g.catches += v.catches; g.stumpings += v.stumpings; g.run_outs += v.run_outs;
+      });
+
+    } catch (e: any) { console.error(`Error ${file}:`, e.message); }
   }
 
-  return { matchRow, playerRows, statsRows, format };
-}
-
-// ── Career summary aggregation ──────────────────────
-
-interface CareerAcc {
-  matches: Set<string>;
-  inningsBat: number;
-  runs: number;
-  balls: number;
-  fours: number;
-  sixes: number;
-  notOuts: number;
-  inningsBowl: number;
-  bowlOvers: number;
-  bowlRuns: number;
-  wickets: number;
-}
-
-function computeSummaries(allStats: any[]): any[] {
-  const career = new Map<string, CareerAcc>(); // key: playerId_format
-
-  for (const s of allStats) {
+  // Career Summaries with Fielding
+  const career = new Map<string, any>();
+  allStats.forEach(s => {
     const key = `${s.player_id}_${s.format}`;
-    if (!career.has(key)) {
-      career.set(key, {
-        matches: new Set(),
-        inningsBat: 0, runs: 0, balls: 0, fours: 0, sixes: 0, notOuts: 0,
-        inningsBowl: 0, bowlOvers: 0, bowlRuns: 0, wickets: 0,
-      });
-    }
+    if (!career.has(key)) career.set(key, { matches: new Set(), runs: 0, balls: 0, not_outs: 0, hundreds: 0, fifties: 0, best_score: 0, bowl_runs: 0, bowl_wickets: 0, bowl_overs: 0, five_wickets: 0, innings_bat: 0, innings_bowl: 0 });
     const c = career.get(key)!;
     c.matches.add(s.match_id);
     if (s.is_batter) {
-      c.inningsBat++;
-      c.runs += s.bat_runs;
-      c.balls += s.bat_balls;
-      c.fours += s.bat_fours;
-      c.sixes += s.bat_sixes;
-      if (s.bat_not_out) c.notOuts++;
+      c.innings_bat++; c.runs += s.bat_runs; c.balls += s.bat_balls;
+      if (s.bat_not_out) c.not_outs++;
+      if (s.bat_runs >= 100) c.hundreds++; else if (s.bat_runs >= 50) c.fifties++;
+      c.best_score = Math.max(c.best_score, s.bat_runs);
     }
     if (s.is_bowler) {
-      c.inningsBowl++;
-      c.bowlOvers += s.bowl_overs;
-      c.bowlRuns += s.bowl_runs;
-      c.wickets += s.bowl_wickets;
+      c.innings_bowl++; c.bowl_wickets += s.bowl_wickets; c.bowl_runs += s.bowl_runs; c.bowl_overs += s.bowl_overs;
+      if (s.bowl_wickets >= 5) c.five_wickets++;
     }
-  }
+  });
 
-  const rows: any[] = [];
-  for (const [key, c] of career) {
-    const [playerId, format] = key.split("_");
-    const dismissals = c.inningsBat - c.notOuts;
-    const avg = dismissals > 0 ? +(c.runs / dismissals).toFixed(2) : null;
-    const sr = c.balls > 0 ? +(c.runs / c.balls * 100).toFixed(2) : null;
-    const econ = c.bowlOvers > 0 ? +(c.bowlRuns / c.bowlOvers).toFixed(2) : null;
-    const bowlAvg = c.wickets > 0 ? +(c.bowlRuns / c.wickets).toFixed(2) : null;
-    const bowlSR = c.wickets > 0 ? +((c.bowlOvers * 6) / c.wickets).toFixed(2) : null;
+  const summaryRows = Array.from(career.entries()).map(([key, c]) => {
+    const [pid, format] = key.split("_");
+    const fld = globalFielding.get(key) || { catches: 0, stumpings: 0, run_outs: 0 };
+    return {
+      player_id: pid, format, matches: c.matches.size, innings_bat: c.innings_bat, runs: c.runs, balls: c.balls, not_outs: c.not_outs,
+      hundreds: c.hundreds, fifties: c.fifties, best_score: c.best_score,
+      innings_bowl: c.innings_bowl, bowl_runs: c.bowl_runs, wickets: c.bowl_wickets, overs: +c.bowl_overs.toFixed(1), bowl_five_wickets: c.five_wickets,
+      average: c.innings_bat > c.not_outs ? +(c.runs / (c.innings_bat - c.not_outs)).toFixed(2) : null,
+      strike_rate: c.balls > 0 ? +(c.runs * 100 / c.balls).toFixed(2) : null,
+      econ: c.bowl_overs > 0 ? +(c.bowl_runs / c.bowl_overs).toFixed(2) : null,
+      ...fld
+    };
+  });
+  await upsertBatch("player_stats_summary", summaryRows);
 
-    rows.push({
-      player_id: playerId,
-      format,
-      matches: c.matches.size,
-      innings_bat: c.inningsBat,
-      runs: c.runs,
-      balls: c.balls,
-      fours: c.fours,
-      sixes: c.sixes,
-      not_outs: c.notOuts,
-      average: avg,
-      strike_rate: sr,
-      innings_bowl: c.inningsBowl,
-      overs: +c.bowlOvers.toFixed(1),
-      bowl_runs: c.bowlRuns,
-      wickets: c.wickets,
-      econ,
-      bowl_average: bowlAvg,
-      bowl_strike_rate: bowlSR,
-    });
-  }
-  return rows;
-}
+  const pRows = Array.from(globalPhase.entries()).map(([key, val]) => {
+    const [pid, format, phase] = key.split("_");
+    return { player_id: pid, format, phase, ...val };
+  });
+  await upsertBatch("player_phase_stats", pRows);
 
-// ── Main ────────────────────────────────────────────
-
-async function main() {
-  const dataDir = process.argv[2] || "./data";
-  console.log(`Scanning for JSON files in: ${dataDir}`);
-
-  const files = readJsonFiles(dataDir);
-  console.log(`Found ${files.length} files`);
-
-  if (files.length === 0) {
-    console.log("No JSON files found. Exiting.");
-    return;
-  }
-
-  const allStatsWithFormat: any[] = [];
-  let processed = 0;
-  let errors = 0;
-
-  for (const file of files) {
-    try {
-      const raw = fs.readFileSync(file, "utf-8");
-      const match: CricsheetMatch = JSON.parse(raw);
-      const matchId = path.basename(file, ".json");
-
-      const { matchRow, playerRows, statsRows, format } = processMatch(match, matchId);
-
-      // Upsert players
-      await upsertBatch("players", playerRows);
-
-      // Upsert match
-      const { error: mErr } = await supabase.from("matches").upsert([matchRow]);
-      if (mErr) console.error(`  Match upsert error (${matchId}):`, mErr.message);
-
-      // Upsert match_player_stats
-      await upsertBatch("match_player_stats", statsRows);
-
-      // Collect for career summary
-      for (const s of statsRows) {
-        allStatsWithFormat.push({ ...s, format });
-      }
-
-      processed++;
-      if (processed % 50 === 0) console.log(`  Processed ${processed}/${files.length} files...`);
-    } catch (err: any) {
-      errors++;
-      console.error(`  Error processing ${file}:`, err.message);
-    }
-  }
-
-  console.log(`\nProcessed ${processed} matches (${errors} errors)`);
-
-  // Compute and upsert career summaries
-  console.log("Computing career summaries...");
-  const summaries = computeSummaries(allStatsWithFormat);
-  console.log(`Upserting ${summaries.length} summary rows...`);
-  await upsertBatch("player_stats_summary", summaries);
-
-  console.log("Done!");
+  console.log("ETL Complete.");
 }
 
 main().catch(console.error);

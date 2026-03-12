@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { motion } from "framer-motion";
-import { AlertTriangle, Shield, TrendingDown, TrendingUp, Copy, Check, Crosshair } from "lucide-react";
+import { AlertTriangle, Shield, TrendingDown, TrendingUp, Copy, Check, Crosshair, HelpCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import type { PlayerSummary } from "@/lib/hooks/usePlayers";
 
@@ -29,156 +29,82 @@ function analyzeFromSummary(stats: PlayerSummary | null): InsightRule[] {
   const rules: InsightRule[] = [];
   if (!stats) return rules;
 
-  // --- BATTING ANALYSIS ---
-  if (stats.innings_bat > 0) {
-    if ((stats.strike_rate || 0) > 140) {
+  if (stats.innings_bat > 10) {
+    // SR Analysis
+    if ((stats.strike_rate || 0) > 135) {
       rules.push({
         type: "strength",
-        title: "Aggressive batting",
-        description: `Strike rate of ${stats.strike_rate?.toFixed(1)} indicates strong attacking intent.`,
-        confidence: 80,
-        tacticalAdvice: "Deny pace on the ball, bowl wide yorkers to restrict arms.",
-        fieldSetup: "Deep covers and long off to protect the boundary.",
+        title: "High Attack Frequency",
+        description: `Strike rate of ${stats.strike_rate?.toFixed(1)} indicates dominant boundary intent.`,
+        confidence: 85,
+        tacticalAdvice: "Deny pace on the ball, bowl wide yorkers or slower bouncers.",
         topic: "batting"
       });
-    } else if ((stats.strike_rate || 0) < 100 && stats.innings_bat > 5) {
+    } else if ((stats.strike_rate || 0) < 110) {
       rules.push({
         type: "weakness",
-        title: "Low strike rate",
-        description: `Strike rate of ${stats.strike_rate?.toFixed(1)} may indicate difficulty rotating strike.`,
-        confidence: 65,
-        tacticalAdvice: "Build dot ball pressure. Bowl tight lines and vary pace.",
-        fieldSetup: "Standard catching field with sweeper options.",
+        title: "Dot Ball Pressure",
+        description: `SR of ${stats.strike_rate?.toFixed(1)} suggests difficulty in accelerating.`,
+        confidence: 70,
+        tacticalAdvice: "Pack the inner ring, squeeze for dot balls to force a mistake.",
         topic: "batting"
       });
     }
 
-    // Boundary analysis
-    if (stats.balls > 0) {
-      const boundaryRate = ((stats.fours + stats.sixes) / stats.balls) * 100;
-      if (boundaryRate > 15) {
+    // Dismissal Mode Analysis
+    const b = stats.dismissals_breakdown || {};
+    const totalDismissals = stats.innings_bat - (stats.not_outs || 0);
+    if (totalDismissals > 5) {
+      if ((b.lbw || 0) + (b.bowled || 0) > totalDismissals * 0.4) {
         rules.push({
-          type: "strength",
-          title: "Boundary hitter",
-          description: `${boundaryRate.toFixed(1)}% boundary rate shows ability to find the fence.`,
+          type: "weakness",
+          title: "Vulnerable Woodwork",
+          description: "High percentage of Bowled/LBW dismissals suggests technical gap.",
           confidence: 75,
-          tacticalAdvice: "Keep the ball out of their arc. Use slower bouncers.",
+          tacticalAdvice: "Attack the stumps. Target the knee-roll length consistently.",
+          topic: "batting"
+        });
+      }
+      if ((b.caught || 0) > totalDismissals * 0.6) {
+        rules.push({
+          type: "weakness",
+          title: "Impulsive Play",
+          description: "Majority of dismissals involve being caught, likely through miscues.",
+          confidence: 65,
+          tacticalAdvice: "Use variations in pace. Slower balls away from the body.",
           topic: "batting"
         });
       }
     }
-    
-    // Average analysis
-    if ((stats.average || 0) < 20 && stats.innings_bat > 5) {
-      rules.push({
-        type: "weakness",
-        title: "Vulnerable to early dismissals",
-        description: `Batting average of ${stats.average?.toFixed(1)} suggests low resilience.`,
-        confidence: 70,
-        tacticalAdvice: "Bowl top of off stump consistently. Attack the pads early.",
-        topic: "batting"
-      });
-    }
-  }
-
-  // --- BOWLING ANALYSIS ---
-  if (stats.innings_bowl > 0 && stats.overs > 0) {
-    if ((stats.econ || 0) > 0 && (stats.econ || 0) < 7) {
-      rules.push({
-        type: "strength",
-        title: "Economical bowling",
-        description: `Economy rate of ${stats.econ?.toFixed(2)} restricts run flow effectively.`,
-        confidence: 75,
-        tacticalAdvice: "Focus on rotating the strike. Don't play rash shots early in the over.",
-        topic: "bowling"
-      });
-    } else if ((stats.econ || 0) > 9 && stats.overs > 10) {
-      rules.push({
-        type: "weakness",
-        title: "Expensive bowler",
-        description: `High economy rate of ${stats.econ?.toFixed(2)} indicates leakage of runs.`,
-        confidence: 80,
-        tacticalAdvice: "Capitalize on loose deliveries. Target them in the powerplay/death overs.",
-        topic: "bowling"
-      });
-    }
-    
-    if ((stats.bowl_strike_rate || 0) > 0 && (stats.bowl_strike_rate || 0) < 20) {
-      rules.push({
-        type: "strength",
-        title: "Wicket-taking threat",
-        description: `Takes a wicket every ${stats.bowl_strike_rate?.toFixed(1)} balls.`,
-        confidence: 85,
-        tacticalAdvice: "Play out their overs carefully. Avoid taking high risks when they bowl.",
-        topic: "bowling"
-      });
-    } else if ((stats.bowl_strike_rate || 0) > 40 && stats.innings_bowl > 5) {
-      rules.push({
-        type: "weakness",
-        title: "Struggles to take wickets",
-        description: `Requires ${stats.bowl_strike_rate?.toFixed(1)} balls per wicket.`,
-        confidence: 65,
-        tacticalAdvice: "Treat as a rotation bowler. Take minimal risks while accumulating runs.",
-        topic: "bowling"
-      });
-    }
-  }
-
-  if (rules.length === 0) {
-    rules.push({
-      type: "strength",
-      title: "Balanced profile",
-      description: "No extreme patterns detected from summary data.",
-      confidence: 50,
-      topic: "batting"
-    });
   }
 
   return rules;
 }
 
 function generateBriefing(rules: InsightRule[]): string {
-  const battingRules = rules.filter(r => r.topic === "batting" && !!r.tacticalAdvice);
-  const bowlingRules = rules.filter(r => r.topic === "bowling" && !!r.tacticalAdvice);
+  const battingRules = rules.filter(r => r.topic === "batting");
+  if (battingRules.length === 0) return "Not enough data for tactical profiling.";
 
-  let briefing = "";
+  let briefing = "🔍 STRATEGIC REPORT\n\n";
+  const weaknesses = battingRules.filter(r => r.type === "weakness");
+  const strengths = battingRules.filter(r => r.type === "strength");
 
-  if (battingRules.length > 0) {
-    briefing += "🏏 HOW TO BOWL TO THEM:\n";
-    const weakBat = battingRules.filter(r => r.type === "weakness");
-    const strongBat = battingRules.filter(r => r.type === "strength");
-    
-    if (weakBat.length > 0) {
-      briefing += `Phase 1 — Exploit Weakness: ${weakBat[0].tacticalAdvice}\n`;
-      if (weakBat[0].fieldSetup) briefing += `Field Setup: ${weakBat[0].fieldSetup}\n`;
-    } else {
-      briefing += `Phase 1 — Standard Setup: Maintain strict line and length outside off stump.\n`;
-    }
-    
-    if (strongBat.length > 0) {
-      briefing += `Phase 2 — Containment: ${strongBat[0].tacticalAdvice}\n`;
-    }
+  if (weaknesses.length > 0) {
+    briefing += "▼ HOW TO DISMISS:\n";
+    weaknesses.forEach(w => {
+      briefing += `• ${w.title}: ${w.tacticalAdvice}\n`;
+    });
     briefing += "\n";
   }
 
-  if (bowlingRules.length > 0) {
-    briefing += "🥎 HOW TO BAT AGAINST THEM:\n";
-    const weakBowl = bowlingRules.filter(r => r.type === "weakness");
-    const strongBowl = bowlingRules.filter(r => r.type === "strength");
-    
-    if (strongBowl.length > 0) {
-      briefing += `Risk Management: ${strongBowl[0].tacticalAdvice}\n`;
-    }
-    if (weakBowl.length > 0) {
-      briefing += `Attacking Approach: ${weakBowl[0].tacticalAdvice}\n`;
-    }
+  if (strengths.length > 0) {
+    briefing += "▲ CONTAINMENT PLAN:\n";
+    strengths.forEach(s => {
+      briefing += `• ${s.title}: ${s.tacticalAdvice}\n`;
+    });
   }
 
-  if (!briefing) {
-    briefing = "No specific tactical advice available based on current data. Play to standard fundamentals.";
-  }
-
-  return briefing.trim();
+  return briefing;
 }
 
 export function WeaknessesTab({ stats, format, isLoading }: WeaknessesTabProps) {
@@ -186,102 +112,120 @@ export function WeaknessesTab({ stats, format, isLoading }: WeaknessesTabProps) 
   const rules = useMemo(() => analyzeFromSummary(stats), [stats]);
   const briefing = useMemo(() => generateBriefing(rules), [rules]);
 
-  if (isLoading) {
+  if (isLoading) return <div className="p-12"><Skeleton className="h-48 w-full" /></div>;
+
+  if (stats && (stats.innings_bat || 0) < 10) {
     return (
-      <div className="space-y-6">
-        <div className="grid gap-4 sm:grid-cols-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-40 rounded-lg" />
-          ))}
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+          <HelpCircle className="h-8 w-8 text-muted-foreground" />
         </div>
+        <h3 className="text-sm font-black uppercase tracking-widest mb-2">Insufficient Data</h3>
+        <p className="text-xs text-muted-foreground max-w-[300px] leading-relaxed">
+          Weakness engine requires at least 10 innings to generate high-confidence patterns for {format}.
+        </p>
       </div>
     );
   }
-
-  if (!stats) {
-    return <EmptyState message={`Not enough data for ${format}.`} />;
-  }
-
-  const weaknesses = rules.filter((r) => r.type === "weakness");
-  const strengths = rules.filter((r) => r.type === "strength");
 
   const handleCopy = () => {
     navigator.clipboard.writeText(briefing);
     setCopied(true);
-    toast({ title: "Copied!", description: "Tactical briefing copied to clipboard." });
+    toast({ title: "Copied!", description: "Tactical briefing copied." });
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const renderCard = (rule: InsightRule, i: number) => {
-    const isWeak = rule.type === "weakness";
-    return (
-      <Card key={i} className={`border-l-4 ${isWeak ? "border-l-destructive bg-destructive/5" : "border-l-success bg-success/5"}`}>
-        <CardContent className="p-4 space-y-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2">
-              {isWeak ? <TrendingDown className="h-4 w-4 text-destructive shrink-0" /> : <TrendingUp className="h-4 w-4 text-success shrink-0" />}
-              <span className="font-semibold text-sm">{rule.title}</span>
-            </div>
-            <Badge variant="outline" className={isWeak ? "border-destructive/40 text-destructive" : "border-success/40 text-success"}>
-              {rule.confidence}%
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground leading-relaxed">{rule.description}</p>
-          <Progress value={rule.confidence} className="h-1.5" />
-          {rule.tacticalAdvice && (
-            <div className="pt-1">
-              <p className="text-xs font-medium text-primary mb-0.5">Tactical Advice</p>
-              <p className="text-xs text-muted-foreground">{rule.tacticalAdvice}</p>
-            </div>
-          )}
-          {rule.fieldSetup && (
-            <div>
-              <p className="text-xs font-medium text-primary mb-0.5">Field setup</p>
-              <p className="text-xs text-muted-foreground">{rule.fieldSetup}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    );
-  };
-
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
-      <div className="grid gap-6 lg:grid-cols-2">
-        {weaknesses.length > 0 && (
-          <div className="space-y-3">
-            <h4 className="font-semibold flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-4 w-4" /> Weaknesses
-            </h4>
-            {weaknesses.map((r, i) => renderCard(r, i))}
-          </div>
-        )}
-        {strengths.length > 0 && (
-          <div className="space-y-3">
-            <h4 className="font-semibold flex items-center gap-2 text-success">
-              <Shield className="h-4 w-4" /> Strengths
-            </h4>
-            {strengths.map((r, i) => renderCard(r, i))}
-          </div>
-        )}
-      </div>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8 pb-12">
+      <div className="grid gap-8 lg:grid-cols-2">
+        {/* Stumps Visualization */}
+        <section className="space-y-4">
+          <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1 flex items-center gap-2">
+             <Crosshair className="h-3 w-3" /> Dismissal Target Profile
+          </h3>
+          <Card className="border-border/60 bg-card/40 relative h-[360px] flex items-center justify-center overflow-hidden">
+             {/* Stumps SVG */}
+             <svg viewBox="0 0 200 200" className="w-64 h-64 opacity-20 text-foreground">
+                <rect x="70" y="80" width="8" height="100" fill="currentColor" rx="2" />
+                <rect x="96" y="80" width="8" height="100" fill="currentColor" rx="2" />
+                <rect x="122" y="80" width="8" height="100" fill="currentColor" rx="2" />
+                <rect x="68" y="75" width="64" height="6" fill="currentColor" rx="2" />
+             </svg>
+             
+             {/* Mode Dots (Mock based on breakdown) */}
+             <div className="absolute inset-0 flex items-center justify-center">
+                {stats?.dismissals_breakdown && Object.entries(stats.dismissals_breakdown).map(([mode, count], idx) => {
+                  if (count === 0) return null;
+                  const angles = [45, 135, 225, 315, 90, 270];
+                  const angle = angles[idx % angles.length];
+                  const dist = 60 + (idx * 5);
+                  const x = Math.cos(angle * Math.PI / 180) * dist;
+                  const y = Math.sin(angle * Math.PI / 180) * dist;
+                  
+                  return (
+                    <motion.div 
+                      key={mode}
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ delay: idx * 0.1 }}
+                      style={{ transform: `translate(${x}px, ${y}px)` }}
+                      className="absolute group cursor-help"
+                    >
+                      <div className="h-4 w-4 rounded-full bg-primary/80 border-2 border-background shadow-lg" />
+                      <div className="absolute top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border px-2 py-1 rounded text-[8px] font-black uppercase whitespace-nowrap z-20">
+                        {mode}: {count}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+             </div>
+             
+             <div className="absolute bottom-4 left-4 right-4 text-center">
+                <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground opacity-50">Spatial Dismissal Mode Density</p>
+             </div>
+          </Card>
+        </section>
 
-      <Card className="border-primary/30 bg-primary/5">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Crosshair className="h-5 w-5 text-primary" /> Tactical Briefing
-            </CardTitle>
-            <button onClick={handleCopy} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
-              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+        {/* Tactical Report */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+               <Shield className="h-3 w-3" /> Tactical Report
+            </h3>
+            <button onClick={handleCopy} className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-1.5 hover:opacity-70 transition-opacity">
+              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
               {copied ? "Copied" : "Copy"}
             </button>
           </div>
-        </CardHeader>
-        <CardContent>
-          <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed">{briefing}</pre>
-        </CardContent>
-      </Card>
+          
+          <Card className="border-primary/20 bg-primary/5 min-h-[360px] flex flex-col">
+            <CardContent className="p-6 flex-1">
+              <pre className="text-xs font-mono text-foreground/80 whitespace-pre-wrap leading-relaxed tabular-nums">
+                {briefing}
+              </pre>
+            </CardContent>
+            <div className="px-6 py-4 border-t border-primary/10">
+              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary/60">
+                <AlertTriangle className="h-3 w-3" /> Note: Based on statistical patterns only.
+              </div>
+            </div>
+          </Card>
+        </section>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {rules.map((rule, i) => (
+          <Card key={i} className={`border-l-4 ${rule.type === 'weakness' ? 'border-l-destructive bg-destructive/5' : 'border-l-success bg-success/5'}`}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-black uppercase tracking-widest">{rule.title}</span>
+                <Badge variant="outline" className="text-[8px] font-black">{rule.confidence}% CONF</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">{rule.description}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </motion.div>
   );
 }

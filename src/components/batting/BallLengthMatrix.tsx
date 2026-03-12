@@ -1,71 +1,20 @@
-import { useMemo } from "react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
+import { Grid3X3 } from "lucide-react";
 
-interface Delivery {
-  ball_length: string | null;
-  runs_batter: number;
-  is_wicket: boolean;
-}
-
-interface BallLengthMatrixProps {
-  deliveries: Delivery[];
-}
-
-const lengths = ["yorker", "full", "good", "short", "bouncer"];
-
-export function BallLengthMatrix({ deliveries }: BallLengthMatrixProps) {
-  const matrix = useMemo(() => {
-    return lengths.map((len) => {
-      const balls = deliveries.filter((d) => d.ball_length === len);
-      const totalBalls = balls.length;
-      const runs = balls.reduce((s, d) => s + d.runs_batter, 0);
-      const dismissals = balls.filter((d) => d.is_wicket).length;
-      const sr = totalBalls > 0 ? ((runs / totalBalls) * 100).toFixed(1) : "-";
-      return { length: len, balls: totalBalls, runs, sr, dismissals };
-    });
-  }, [deliveries]);
-
-  const getSrClass = (sr: string, dismissals: number, balls: number) => {
-    if (balls === 0) return "";
-    const srNum = parseFloat(sr);
-    if (dismissals > 0 && srNum < 100) return "bg-destructive/15 text-destructive";
-    if (srNum >= 150) return "bg-success/15 text-success";
-    if (srNum >= 100) return "bg-primary/10 text-primary";
-    return "bg-warning/10 text-warning";
-  };
-
+export function BallLengthMatrix({ deliveries }: { deliveries: any[] }) {
   return (
-    <div className="overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="font-heading">Length</TableHead>
-            <TableHead className="text-right">Balls</TableHead>
-            <TableHead className="text-right">Runs</TableHead>
-            <TableHead className="text-right">SR</TableHead>
-            <TableHead className="text-right">Dismissals</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {matrix.map((row) => (
-            <TableRow key={row.length}>
-              <TableCell className="font-medium capitalize">{row.length}</TableCell>
-              <TableCell className="text-right">{row.balls}</TableCell>
-              <TableCell className="text-right font-semibold">{row.runs}</TableCell>
-              <TableCell className={`text-right font-mono rounded ${getSrClass(String(row.sr), row.dismissals, row.balls)}`}>
-                {row.sr}
-              </TableCell>
-              <TableCell className="text-right">
-                {row.dismissals > 0 ? (
-                  <span className="text-destructive font-semibold">{row.dismissals}</span>
-                ) : (
-                  <span className="text-muted-foreground">0</span>
-                )}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+    <Card className="border-border/50 bg-muted/10 border-dashed relative overflow-hidden h-[300px]">
+      <CardContent className="h-full flex flex-col items-center justify-center p-6 text-center">
+        <div className="bg-background/80 backdrop-blur-sm p-8 rounded-2xl border border-border shadow-2xl relative z-10 max-w-[240px]">
+          <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+            <Grid3X3 className="h-6 w-6 text-primary" />
+          </div>
+          <h3 className="text-sm font-black uppercase tracking-widest mb-2">Coming Soon</h3>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Detailed ball length data (Yorker, Short, etc.) is not available in current datasets.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

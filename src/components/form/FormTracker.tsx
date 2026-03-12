@@ -13,8 +13,40 @@ interface FormTrackerProps {
   format: string;
 }
 
-function calcFormScore(runs: number, sr: number) {
-  return +Math.min(10, Math.max(1, (sr / 20 + runs / 15))).toFixed(1);
+function calcFormScore(runs: number, sr: number, notOut: boolean) {
+  // Base score from runs (e.g. 50 runs -> 5.0)
+  let score = runs / 10.0;
+  
+  // Milestones
+  if (runs >= 100) score += 5.0;
+  else if (runs >= 50) score += 3.0;
+  else if (runs >= 30) score += 1.5;
+  
+  // Strike Rate Performance
+  if (sr > 180) score += 4.0;
+  else if (sr > 140) score += 2.0;
+  else if (sr < 100 && runs > 0) score -= 2.0;
+
+  // Reliability
+  if (notOut && runs > 15) score += 1.5;
+  
+  return +Math.min(10, Math.max(1, score)).toFixed(1);
+}
+
+function calcBowlingFormScore(wickets: number, econ: number) {
+  // Impact: Wickets are the primary metric
+  let score = wickets * 3.0; // 2 wkts = 6.0, 3 wkts = 9.0
+  
+  // Milestone Bonuses
+  if (wickets >= 5) score += 5.0;
+  else if (wickets >= 3) score += 2.0;
+
+  // Economy Bonuses (Format Agnostic Baseline)
+  if (econ < 6.5) score += 3.0;
+  else if (econ < 8.5) score += 1.5;
+  else if (econ > 11.0) score -= 3.0;
+  
+  return +Math.min(10, Math.max(1, score)).toFixed(1);
 }
 
 function getFormLabel(score: number) {
@@ -71,7 +103,7 @@ export function FormTracker({ recentMatches, format }: FormTrackerProps) {
           ...m,
           sr,
           year,
-          formScore: calcFormScore(m.bat_runs, sr),
+          formScore: calcFormScore(m.bat_runs, sr, m.bat_not_out),
           opponent: `${m.team1} vs ${m.team2}`,
           dateFormatted: m.match_date ? dateFmt(new Date(m.match_date), "d MMM yyyy") : "—",
         };

@@ -14,8 +14,19 @@ interface BowlingFormTrackerProps {
 }
 
 function calcBowlingFormScore(wickets: number, econ: number) {
-  // Simple algorithm: Wickets are worth 2.5 pts, good economy gives up to 5 pts.
-  return +Math.min(10, Math.max(1, (wickets * 2.5) + (10 - econ) / 2)).toFixed(1);
+  // Impact: Wickets are the primary metric
+  let score = wickets * 3.0; // 2 wkts = 6.0, 3 wkts = 9.0
+  
+  // Milestone Bonuses
+  if (wickets >= 5) score += 5.0;
+  else if (wickets >= 3) score += 2.0;
+
+  // Economy Bonuses (Format Agnostic Baseline)
+  if (econ < 6.5) score += 3.0;
+  else if (econ < 8.5) score += 1.5;
+  else if (econ > 11.0) score -= 3.0;
+  
+  return +Math.min(10, Math.max(1, score)).toFixed(1);
 }
 
 function getFormLabel(score: number) {

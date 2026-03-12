@@ -8,6 +8,10 @@ export interface Player {
   name: string;
   country: string;
   gender: string;
+  role: string | null;
+  debut_year: number | null;
+  last_played_year: number | null;
+  formats_played: string[] | null;
 }
 
 export interface PlayerSummary {
@@ -22,13 +26,22 @@ export interface PlayerSummary {
   not_outs: number;
   average: number | null;
   strike_rate: number | null;
+  hundreds: number;
+  fifties: number;
+  best_score: number;
+  dismissals_breakdown: Record<string, number>;
   innings_bowl: number;
   overs: number;
   bowl_runs: number;
   wickets: number;
+  bowl_five_wickets: number;
+  bowl_best_figures: string | null;
   econ: number | null;
   bowl_average: number | null;
   bowl_strike_rate: number | null;
+  catches: number;
+  stumpings: number;
+  run_outs: number;
 }
 
 export interface PlayerMatchRow {
@@ -76,6 +89,7 @@ export function usePlayerSearch(query: string, gender: "all" | "male" | "female"
       return data as Player[];
     },
     enabled: true,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -92,6 +106,7 @@ export function usePlayer(id: string | undefined) {
       return data as Player;
     },
     enabled: !!id,
+    staleTime: 10 * 60 * 1000,
   });
 }
 
@@ -104,9 +119,10 @@ export function usePlayerSummary(playerId: string | undefined) {
         .select("*")
         .eq("player_id", playerId!);
       if (error) throw error;
-      return data as PlayerSummary[];
+      return (data as unknown) as PlayerSummary[];
     },
     enabled: !!playerId,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -255,6 +271,7 @@ export function useFeaturedPlayers(page = 0, pageSize = 100, country?: string) {
       if (error) throw error;
       return data as Player[];
     },
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -272,6 +289,7 @@ export function useCountries() {
       const uniqueCountries = [...new Set(data.map(p => p.country))].sort();
       return ["All Countries", ...uniqueCountries];
     },
+    staleTime: 24 * 60 * 60 * 1000, // 24 hours
   });
 }
 
@@ -310,5 +328,41 @@ export function useRecentMatches(limit = 10, gender?: "all" | "male" | "female",
       if (error) throw error;
       return data as any[];
     },
+  });
+}
+
+export function usePlayerVsBowling(playerId: string | undefined, format?: string) {
+  return useQuery({
+    queryKey: ["player-vs-bowling", playerId, format],
+    queryFn: async () => {
+      let q = supabase
+        .from("player_vs_bowling_type")
+        .select("*")
+        .eq("player_id", playerId!);
+      if (format) q = q.eq("format", format);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!playerId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function usePlayerPhaseStats(playerId: string | undefined, format?: string) {
+  return useQuery({
+    queryKey: ["player-phase-stats", playerId, format],
+    queryFn: async () => {
+      let q = supabase
+        .from("player_phase_stats")
+        .select("*")
+        .eq("player_id", playerId!);
+      if (format) q = q.eq("format", format);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!playerId,
+    staleTime: 5 * 60 * 1000,
   });
 }

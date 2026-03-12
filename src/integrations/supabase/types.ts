@@ -227,13 +227,19 @@ export type Database = {
         Row: {
           average: number | null
           balls: number
+          best_score: number
           bowl_average: number | null
+          bowl_best_figures: string | null
+          bowl_five_wickets: number
           bowl_runs: number
           bowl_strike_rate: number | null
           created_at: string
+          dismissals_breakdown: Json
           econ: number | null
+          fifties: number
           format: string
           fours: number
+          hundreds: number
           innings_bat: number
           innings_bowl: number
           matches: number
@@ -248,13 +254,19 @@ export type Database = {
         Insert: {
           average?: number | null
           balls?: number
+          best_score?: number
           bowl_average?: number | null
+          bowl_best_figures?: string | null
+          bowl_five_wickets?: number
           bowl_runs?: number
           bowl_strike_rate?: number | null
           created_at?: string
+          dismissals_breakdown?: Json
           econ?: number | null
+          fifties?: number
           format: string
           fours?: number
+          hundreds?: number
           innings_bat?: number
           innings_bowl?: number
           matches?: number
@@ -269,13 +281,19 @@ export type Database = {
         Update: {
           average?: number | null
           balls?: number
+          best_score?: number
           bowl_average?: number | null
+          bowl_best_figures?: string | null
+          bowl_five_wickets?: number
           bowl_runs?: number
           bowl_strike_rate?: number | null
           created_at?: string
+          dismissals_breakdown?: Json
           econ?: number | null
+          fifties?: number
           format?: string
           fours?: number
+          hundreds?: number
           innings_bat?: number
           innings_bowl?: number
           matches?: number
@@ -351,23 +369,35 @@ export type Database = {
         Row: {
           country: string
           created_at: string
+          debut_year: number | null
+          formats_played: string[] | null
           gender: string
           id: string
+          last_played_year: number | null
           name: string
+          role: string | null
         }
         Insert: {
           country?: string
           created_at?: string
+          debut_year?: number | null
+          formats_played?: string[] | null
           gender?: string
           id: string
+          last_played_year?: number | null
           name: string
+          role?: string | null
         }
         Update: {
           country?: string
           created_at?: string
+          debut_year?: number | null
+          formats_played?: string[] | null
           gender?: string
           id?: string
+          last_played_year?: number | null
           name?: string
+          role?: string | null
         }
         Relationships: []
       }

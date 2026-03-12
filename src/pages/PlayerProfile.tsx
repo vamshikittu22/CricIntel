@@ -83,7 +83,13 @@ export default function PlayerProfile() {
           >
              {section === "overview" && (
                <div ref={setRef("overview")}>
-                 <PlayerOverview battingStats={stats} format={format} totals={totals} />
+                 <PlayerOverview 
+                   battingStats={stats} 
+                   bowlingStats={stats}
+                   format={format} 
+                   totals={totals} 
+                   recentMatches={recentMatches || []} 
+                 />
                </div>
              )}
 
