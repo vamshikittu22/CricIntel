@@ -22,6 +22,8 @@ const countryCodes: Record<string, string> = {
   Scotland: "SCO",
   "United Arab Emirates": "UAE",
   "United States of America": "USA",
+  "India Women": "IND",
+  "Australia Women": "AUS",
 };
 
 export function getFlag(country: string | undefined | null): string {

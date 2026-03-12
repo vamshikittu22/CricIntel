@@ -8,6 +8,7 @@
  * Expects subfolders like data/odi, data/t20i, data/test, data/ipl with .json files.
  */
 
+import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 import * as fs from "fs";
 import * as path from "path";
@@ -18,7 +19,7 @@ import type {
 } from "../src/lib/cricsheet";
 import { mapMatchTypeToFormat } from "../src/lib/cricsheet";
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {

@@ -6,6 +6,7 @@ interface OverviewProps {
   battingStats?: PlayerSummary | null;
   bowlingStats?: PlayerSummary | null;
   format: string;
+  totals?: any; // Career totals across all formats
 }
 
 interface InsightCard {
@@ -15,7 +16,7 @@ interface InsightCard {
   borderColor: string;
 }
 
-export function PlayerOverview({ battingStats, bowlingStats, format }: OverviewProps) {
+export function PlayerOverview({ battingStats, bowlingStats, format, totals }: OverviewProps) {
   const bs = battingStats;
   // For bowling we reuse the same summary row since it has both bat and bowl fields
   const bw = bowlingStats || bs;
@@ -110,6 +111,36 @@ export function PlayerOverview({ battingStats, bowlingStats, format }: OverviewP
           ))}
         </div>
       </div>
+
+      {totals && (
+        <>
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+            Career Totals (All Formats)
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground uppercase">Total Matches</p>
+              <p className="text-2xl font-bold">{totals.matches}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground uppercase">Total Runs</p>
+              <p className="text-2xl font-bold">{totals.runs}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground uppercase">Total Wickets</p>
+              <p className="text-2xl font-bold">{totals.wickets}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground uppercase">Total Innings (Bat)</p>
+              <p className="text-2xl font-bold">{totals.innings_bat}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground uppercase">Total Innings (Bowl)</p>
+              <p className="text-2xl font-bold">{totals.innings_bowl}</p>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

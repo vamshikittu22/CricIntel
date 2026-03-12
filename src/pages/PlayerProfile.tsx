@@ -13,6 +13,7 @@ import { FormTab } from "@/components/form/FormTab";
 import { EmptyState } from "@/components/ui/empty-state";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useRef, useCallback } from "react";
+import { usePlayerTotals } from "@/lib/hooks/usePlayers";
 
 export default function PlayerProfile() {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +21,7 @@ export default function PlayerProfile() {
   const [section, setSection] = useState<ProfileTab>("overview");
   const { data: player, isLoading: playerLoading } = usePlayer(id);
   const { data: summaries, isLoading: summaryLoading } = usePlayerSummary(id);
+  const { data: totals, isLoading: totalsLoading } = usePlayerTotals(id);
   const { data: recentMatches, isLoading: matchesLoading } = usePlayerRecentMatches(id, format);
 
   const stats = summaries?.find((s) => s.format === format) ?? null;
@@ -79,11 +81,11 @@ export default function PlayerProfile() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2 }}
           >
-            {section === "overview" && (
-              <div ref={setRef("overview")}>
-                <PlayerOverview battingStats={stats} format={format} />
-              </div>
-            )}
+             {section === "overview" && (
+               <div ref={setRef("overview")}>
+                 <PlayerOverview battingStats={stats} format={format} totals={totals} />
+               </div>
+             )}
 
             {section === "batting" && (
               <div ref={setRef("batting")}>

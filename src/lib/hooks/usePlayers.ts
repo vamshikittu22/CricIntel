@@ -110,6 +110,85 @@ export function usePlayerSummary(playerId: string | undefined) {
   });
 }
 
+// Hook to get aggregated totals across all formats for a player
+export function usePlayerTotals(playerId: string | undefined) {
+  return useQuery({
+    queryKey: ["player-totals", playerId],
+    queryFn: async () => {
+      if (!playerId) return null;
+      
+      const { data: summaries, error } = await supabase
+        .from("player_stats_summary")
+        .select("*")
+        .eq("player_id", playerId!);
+      
+      if (error) throw error;
+      
+      if (!summaries || summaries.length === 0) return null;
+      
+      // Calculate totals across all formats
+      const totals = summaries.reduce((acc, curr) => {
+        return {
+          matches: (acc.matches || 0) + (curr.matches || 0),
+          innings_bat: (acc.innings_bat || 0) + (curr.innings_bat || 0),
+          runs: (acc.runs || 0) + (curr.runs || 0),
+          balls: (acc.balls || 0) + (curr.balls || 0),
+          fours: (acc.fours || 0) + (curr.fours || 0),
+          sixes: (acc.sixes || 0) + (curr.sixes || 0),
+          not_outs: (acc.not_outs || 0) + (curr.not_outs || 0),
+          innings_bowl: (acc.innings_bowl || 0) + (curr.innings_bowl || 0),
+          overs: (acc.overs || 0) + (curr.overs || 0),
+          bowl_runs: (acc.bowl_runs || 0) + (curr.bowl_runs || 0),
+          wickets: (acc.wickets || 0) + (curr.wickets || 0),
+        };
+      }, {
+        matches: 0,
+        innings_bat: 0,
+        runs: 0,
+        balls: 0,
+        fours: 0,
+        sixes: 0,
+        not_outs: 0,
+        innings_bowl: 0,
+        overs: 0,
+        bowl_runs: 0,
+        wickets: 0,
+      });
+      
+      // Calculate derived statistics
+      const average = totals.innings_bat > 0 && totals.not_outs < totals.innings_bat 
+        ? totals.runs / (totals.innings_bat - totals.not_outs) 
+        : null;
+      
+      const strike_rate = totals.balls > 0 
+        ? (totals.runs * 100) / totals.balls 
+        : null;
+      
+      const bowl_average = totals.wickets > 0 
+        ? totals.bowl_runs / totals.wickets 
+        : null;
+      
+      const bowl_strike_rate = totals.wickets > 0 
+        ? (totals.overs * 6) / totals.wickets 
+        : null;
+      
+      const econ = totals.overs > 0 
+        ? totals.bowl_runs / totals.overs 
+        : null;
+      
+      return {
+        ...totals,
+        average: average ? Number(average.toFixed(2)) : null,
+        strike_rate: strike_rate ? Number(strike_rate.toFixed(2)) : null,
+        bowl_average: bowl_average ? Number(bowl_average.toFixed(2)) : null,
+        bowl_strike_rate: bowl_strike_rate ? Number(bowl_strike_rate.toFixed(2)) : null,
+        econ: econ ? Number(econ.toFixed(2)) : null,
+      };
+    },
+    enabled: !!playerId,
+  });
+}
+
 export function usePlayerRecentMatches(playerId: string | undefined, format?: string, limit = 500) {
   return useQuery({
     queryKey: ["player-recent-matches", playerId, format, limit],

@@ -11,6 +11,14 @@ import { createClient } from "@supabase/supabase-js";
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
 
 const formatFilters = ["All", "ODI", "T20I", "Test", "IPL"];
+
+  // Map UI format values to database format values
+  // Based on checking the database, it appears the format values are stored as:
+  // "Test", "ODI", "T20I" (not "T20")
+  const getDbFormat = (format: string): string => {
+    if (format === "T20") return "T20I";
+    return format;
+  };
 const genderFilters = [
   { value: "all", label: "All", icon: null },
   { value: "male", label: "Men", icon: User },
@@ -23,36 +31,44 @@ const Matches = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
   
-  const { data: matches, isLoading } = useQuery({
-    queryKey: ["matches", activeFormat, activeGender],
-    queryFn: async () => {
-      let q = supabase.from("matches").select("*").order("match_date", { ascending: false });
-      if (activeFormat !== "All") {
-        q = q.eq("format", activeFormat);
-      }
-      if (activeGender !== "all") {
-        q = q.eq("gender", activeGender);
-      }
-      const { data, error } = await q;
-      if (error) throw error;
-      return data || [];
-    }
-  });
-  
-  const { data: countData } = useQuery({
-    queryKey: ["matches-count", activeFormat, activeGender],
-    queryFn: async () => {
-      let q = supabase.from("matches").select("*", { count: "exact", head: true });
-      if (activeFormat !== "All") {
-        q = q.eq("format", activeFormat);
-      }
-      if (activeGender !== "all") {
-        q = q.eq("gender", activeGender);
-      }
-      const { count } = await q;
-      return count || 0;
-    }
-  });
+   const { data: matches, isLoading } = useQuery({
+     queryKey: ["matches", activeFormat, activeGender],
+     queryFn: async () => {
+       let q = supabase.from("matches").select("*").order("match_date", { ascending: false });
+       if (activeFormat !== "All") {
+         q = q.eq("format", getDbFormat(activeFormat));
+       }
+       if (activeGender !== "all") {
+         q = q.eq("gender", activeGender);
+       }
+       const { data, error } = await q;
+       if (error) {
+         console.error("Error fetching matches:", error);
+         console.log("Query params - activeFormat:", activeFormat, "activeGender:", activeGender, "dbFormat:", getDbFormat(activeFormat));
+       }
+       if (error) throw error;
+       return data || [];
+     }
+   });
+   
+   const { data: countData } = useQuery({
+     queryKey: ["matches-count", activeFormat, activeGender],
+     queryFn: async () => {
+       let q = supabase.from("matches").select("*", { count: "exact", head: true });
+       if (activeFormat !== "All") {
+         q = q.eq("format", getDbFormat(activeFormat));
+       }
+       if (activeGender !== "all") {
+         q = q.eq("gender", activeGender);
+       }
+       const { count, error } = await q;
+       if (error) {
+         console.error("Error fetching matches count:", error);
+         console.log("Query params - activeFormat:", activeFormat, "activeGender:", activeGender, "dbFormat:", getDbFormat(activeFormat));
+       }
+       return count || 0;
+     }
+   });
 
   const filteredMatches = matches?.filter((match) => {
     const searchLow = searchQuery.toLowerCase();
