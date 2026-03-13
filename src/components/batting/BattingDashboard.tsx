@@ -21,7 +21,7 @@ interface BattingDashboardProps {
 
 export function BattingDashboard({ stats, recentMatches, format, isLoading: parentLoading }: BattingDashboardProps) {
   const { data: vsBowlingStats, isLoading: vsBowlingLoading } = usePlayerVsBowling(
-    stats?.player_id, 
+    stats?.player_id,
     format
   );
   const { data: phaseStats, isLoading: phaseLoading } = usePlayerPhaseStats(
@@ -111,6 +111,25 @@ export function BattingDashboard({ stats, recentMatches, format, isLoading: pare
 
   const recentTrend = useMemo(() => processedMatches.slice(-30), [processedMatches]);
 
+  // New useMemos for weakness tab extensions - use bowler_type from vsBowlingStats (not bowling_type)
+  const paceDismissals = useMemo(() => {
+    return vsBowlingStats?.reduce((acc, curr) => acc + (curr.bowler_type === 'pace' ? curr.bat_dismissals : 0), 0) || 0;
+  }, [vsBowlingStats]);
+
+  const spinDismissals = useMemo(() => {
+    return vsBowlingStats?.reduce((acc, curr) => acc + (curr.bowler_type === 'spin' ? curr.bat_dismissals : 0), 0) || 0;
+  }, [vsBowlingStats]);
+
+  const bowlerDismissals = useMemo(() => {
+    return vsBowlingStats
+      ?.map(bowler => ({
+        name: bowler.bowler_name || bowler.bowler, // Fallback to bowler field if bowler_name not available
+        dismissals: bowler.bat_dismissals
+      }))
+      .filter(bowler => bowler.dismissals > 0)
+      .sort((a, b) => b.dismissals - a.dismissals) || [];
+  }, [vsBowlingStats]);
+
   if (isLoading) {
     return (
       <div className="space-y-8 animate-pulse pb-20">
@@ -118,8 +137,8 @@ export function BattingDashboard({ stats, recentMatches, format, isLoading: pare
           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-[1.5rem]" />)}
         </div>
         <div className="grid gap-8 lg:grid-cols-2">
-           <Skeleton className="h-[400px] rounded-[2rem]" />
-           <Skeleton className="h-[400px] rounded-[2rem]" />
+          <Skeleton className="h-[400px] rounded-[2rem]" />
+          <Skeleton className="h-[400px] rounded-[2rem]" />
         </div>
       </div>
     );
@@ -135,7 +154,7 @@ export function BattingDashboard({ stats, recentMatches, format, isLoading: pare
       <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
         {[
           { label: "Aggregate Matches", value: stats?.matches ?? processedMatches.length, icon: History, color: "text-muted-foreground" },
-          { label: "Total Runs", value: stats?.runs ?? processedMatches.reduce((a,b) => a+b.runs, 0), highlight: true, icon: Trophy, color: "text-primary" },
+          { label: "Total Runs", value: stats?.runs ?? processedMatches.reduce((a, b) => a + b.runs, 0), highlight: true, icon: Trophy, color: "text-primary" },
           { label: "Elite Average", value: stats?.average ?? "—", icon: ShieldCheck, color: "text-blue-600 dark:text-blue-500" },
           { label: "Strike Index", value: stats?.strike_rate ?? "—", icon: Zap, color: "text-amber-600 dark:text-amber-500" },
           { label: "Boundary Fours", value: stats?.fours ?? "—", icon: Target, color: "text-primary/70" },
@@ -154,11 +173,11 @@ export function BattingDashboard({ stats, recentMatches, format, isLoading: pare
               s.highlight ? "text-primary text-4xl font-black" : "text-3xl font-black text-foreground"
             )}>{s.value}</span>
             <div className="mt-4 h-1 w-full bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden relative z-10 p-0.5 shadow-inner">
-               <motion.div 
-                 initial={{ width: 0 }} 
-                 animate={{ width: "60%" }} 
-                 className={cn("h-full rounded-full", s.highlight ? 'bg-primary' : 'bg-muted-foreground/30')} 
-               />
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: "60%" }}
+                className={cn("h-full rounded-full", s.highlight ? 'bg-primary' : 'bg-muted-foreground/30')}
+              />
             </div>
           </div>
         ))}
@@ -174,69 +193,96 @@ export function BattingDashboard({ stats, recentMatches, format, isLoading: pare
             <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] opacity-80">Exit Vectors</h3>
           </div>
           <DismissalChart breakdown={computedDismissals} />
+          {/* New: Pace and Spin dismissals */}
+          <div className="mt-6 grid grid-cols-2 gap-4 text-[10px] font-black text-muted-foreground">
+            <div>
+              <p className="mb-1">vs Pace</p>
+              <p className="text-2xl font-black text-foreground">{paceDismissals}</p>
+            </div>
+            <div>
+              <p className="mb-1">vs Spin</p>
+              <p className="text-2xl font-black text-foreground">{spinDismissals}</p>
+            </div>
+          </div>
+          {/* New: Bowler dismissals list */}
+          <div className="mt-6">
+            <p className="mb-2 text-[9px] font-black text-muted-foreground uppercase tracking-widest">Dismissals by Bowler</p>
+            {bowlerDismissals.length > 0 ? (
+              <div className="space-y-2">
+                {bowlerDismissals.map((bowler, index) => (
+                  <div key={index} className="flex justify-between text-[9px] font-black text-muted-foreground">
+                    <span>{bowler.name}</span>
+                    <span>{bowler.dismissals}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[9px] font-black text-muted-foreground italic">No bowler dismissal data available</p>
+            )}
+          </div>
           <div className="mt-6 p-5 rounded-2xl bg-slate-100/50 dark:bg-secondary/30 border border-black/[0.08] dark:border-border text-[10px] font-bold text-muted-foreground dark:text-muted-foreground/80 leading-relaxed italic shadow-inner">
-             "Exit vector analysis reveals technical vulnerabilities in high-pressure scenarios."
+            "Exit vector analysis reveals technical vulnerabilities in high-pressure scenarios."
           </div>
         </div>
 
         {/* Phase Performance Grid */}
         <div className="lg:col-span-2 p-8 rounded-[2.5rem] glass border-border/50 bg-white/5 dark:bg-white/1 overflow-hidden relative shadow-2xl">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-12">
-             <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Activity className="h-4 w-4 text-primary" />
-                </div>
-                <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] opacity-80">Strategic Phase Engagement</h3>
-             </div>
-             <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-100 dark:bg-secondary border border-black/5 dark:border-border shadow-sm">
-                <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-60">Consistency:</span>
-                <span className="text-[10px] font-black text-primary">{consistency}%</span>
-             </div>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <Activity className="h-4 w-4 text-primary" />
+              </div>
+              <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] opacity-80">Strategic Phase Engagement</h3>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-100 dark:bg-secondary border border-black/5 dark:border-border shadow-sm">
+              <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-60">Consistency:</span>
+              <span className="text-[10px] font-black text-primary">{consistency}%</span>
+            </div>
           </div>
 
           {bPhaseStats.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-               {bPhaseStats.map((p, i) => (
-                 <div key={i} className="p-6 rounded-[2rem] bg-slate-50 dark:bg-secondary/40 border border-black/5 dark:border-border hover:bg-slate-100 dark:hover:bg-muted/50 transition-all group shadow-sm">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-5 group-hover:text-primary transition-colors">{p.name}</p>
-                    <div className="space-y-5">
-                       <div>
-                          <p className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-widest">Runs Index</p>
-                          <p className="text-3xl font-black tracking-tighter text-foreground leading-none">{p.runs}</p>
-                       </div>
-                        <div className="grid grid-cols-2 gap-4 border-t border-black/[0.08] dark:border-white/5 pt-4">
-                           <div>
-                              <p className="text-[8px] font-black text-muted-foreground/70 dark:text-muted-foreground/60 uppercase tracking-wider">Strike</p>
-                              <p className="text-sm font-black text-primary leading-none">{p.sr}</p>
-                           </div>
-                           <div className="text-right">
-                              <p className="text-[8px] font-black text-muted-foreground/70 dark:text-muted-foreground/60 uppercase tracking-wider">Avg</p>
-                              <p className="text-sm font-black text-foreground dark:text-foreground/70 leading-none">{p.avg}</p>
-                           </div>
-                        </div>
+              {bPhaseStats.map((p, i) => (
+                <div key={i} className="p-6 rounded-[2rem] bg-slate-50 dark:bg-secondary/40 border border-black/5 dark:border-border hover:bg-slate-100 dark:hover:bg-muted/50 transition-all group shadow-sm">
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-5 group-hover:text-primary transition-colors">{p.name}</p>
+                  <div className="space-y-5">
+                    <div>
+                      <p className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-widest">Runs Index</p>
+                      <p className="text-3xl font-black tracking-tighter text-foreground leading-none">{p.runs}</p>
                     </div>
-                 </div>
-               ))}
+                    <div className="grid grid-cols-2 gap-4 border-t border-black/[0.08] dark:border-white/5 pt-4">
+                      <div>
+                        <p className="text-[8px] font-black text-muted-foreground/70 dark:text-muted-foreground/60 uppercase tracking-wider">Strike</p>
+                        <p className="text-sm font-black text-primary leading-none">{p.sr}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[8px] font-black text-muted-foreground/70 dark:text-muted-foreground/60 uppercase tracking-wider">Avg</p>
+                        <p className="text-sm font-black text-foreground dark:text-foreground/70 leading-none">{p.avg}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground/40">
-               <Info className="h-12 w-12 mb-4 opacity-10" />
-               <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">Insufficient phase-tagged data</p>
+              <Info className="h-12 w-12 mb-4 opacity-10" />
+              <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">Insufficient phase-tagged data</p>
             </div>
           )}
 
           <div className="mt-12 p-6 border-t border-black/5 dark:border-border flex items-center justify-between bg-slate-50/50 dark:bg-muted/20 -mx-8 -mb-8 shadow-inner">
-             <div className="flex items-center px-8">
-                <div className="flex flex-col">
-                   <span className="text-[8px] font-black uppercase text-muted-foreground/60 tracking-widest mb-1 opacity-70">Primary Role</span>
-                   <span className="text-[11px] font-black uppercase text-foreground/90">{consistency !== "—" && +consistency > 60 ? "Technical Stabilizer" : "Explosive Catalyst"}</span>
-                </div>
-             </div>
-             <div className="h-10 w-px bg-black/5 dark:bg-border" />
-             <div className="flex flex-col text-right px-8">
-                <span className="text-[8px] font-black uppercase text-muted-foreground/60 tracking-widest mb-1 opacity-70">Calculated Impact</span>
-                <span className={cn("text-[11px] font-black uppercase", consistency !== "—" && +consistency > 75 ? "text-success" : "text-amber-600")}>High Probability</span>
-             </div>
+            <div className="flex items-center px-8">
+              <div className="flex flex-col">
+                <span className="text-[8px] font-black uppercase text-muted-foreground/60 tracking-widest mb-1 opacity-70">Primary Role</span>
+                <span className="text-[11px] font-black uppercase text-foreground/90">{consistency !== "—" && +consistency > 60 ? "Technical Stabilizer" : "Explosive Catalyst"}</span>
+              </div>
+            </div>
+            <div className="h-10 w-px bg-black/5 dark:bg-border" />
+            <div className="flex flex-col text-right px-8">
+              <span className="text-[8px] font-black uppercase text-muted-foreground/60 tracking-widest mb-1 opacity-70">Calculated Impact</span>
+              <span className={cn("text-[11px] font-black uppercase", consistency !== "—" && +consistency > 75 ? "text-success" : "text-amber-600")}>High Probability</span>
+            </div>
           </div>
         </div>
       </div>
@@ -284,43 +330,43 @@ export function BattingDashboard({ stats, recentMatches, format, isLoading: pare
             <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] opacity-80">Intensity Progression Matrix</h3>
           </div>
           <div className="h-[280px] w-full">
-             <ResponsiveContainer width="100%" height="100%">
-               <AreaChart data={recentTrend}>
-                 <defs>
-                   <linearGradient id="colorRuns" x1="0" y1="0" x2="0" y2="1">
-                     <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                     <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                   </linearGradient>
-                 </defs>
-                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
-                 <XAxis dataKey="inning" hide />
-                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: "900", fill: "currentColor" }} className="text-muted-foreground" />
-                 <Tooltip
-                   content={({ payload }) => {
-                     if (!payload?.length) return null;
-                     const d = payload[0].payload;
-                     return (
-                       <div className="rounded-[2.5rem] border border-border bg-popover/95 backdrop-blur-3xl p-8 text-xs shadow-2xl min-w-[240px]">
-                         <p className="font-black text-muted-foreground uppercase tracking-[0.2em] text-[9px] mb-4 opacity-60">{d.opponent}</p>
-                         <div className="flex items-end justify-between gap-8">
-                           <p className="text-primary font-black text-5xl tracking-tighter leading-none">{d.runs}{d.isNotOut ? "*" : ""}</p>
-                           <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest opacity-60">{d.date}</p>
-                         </div>
-                       </div>
-                     );
-                   }}
-                 />
-                 <Area 
-                   type="monotone" 
-                   dataKey="runs" 
-                   stroke="hsl(var(--primary))" 
-                   strokeWidth={5} 
-                   fillOpacity={1} 
-                   fill="url(#colorRuns)"
-                   activeDot={{ r: 10, strokeWidth: 0, fill: "hsl(var(--primary))", shadow: "0 0 20px rgba(var(--primary-rgb), 0.5)" }} 
-                 />
-               </AreaChart>
-             </ResponsiveContainer>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={recentTrend}>
+                <defs>
+                  <linearGradient id="colorRuns" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
+                <XAxis dataKey="inning" hide />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: "900", fill: "currentColor" }} className="text-muted-foreground" />
+                <Tooltip
+                  content={({ payload }) => {
+                    if (!payload?.length) return null;
+                    const d = payload[0].payload;
+                    return (
+                      <div className="rounded-[2.5rem] border border-border bg-popover/95 backdrop-blur-3xl p-8 text-xs shadow-2xl min-w-[240px]">
+                        <p className="font-black text-muted-foreground uppercase tracking-[0.2em] text-[9px] mb-4 opacity-60">{d.opponent}</p>
+                        <div className="flex items-end justify-between gap-8">
+                          <p className="text-primary font-black text-5xl tracking-tighter leading-none">{d.runs}{d.isNotOut ? "*" : ""}</p>
+                          <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest opacity-60">{d.date}</p>
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="runs"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth={5}
+                  fillOpacity={1}
+                  fill="url(#colorRuns)"
+                  activeDot={{ r: 10, strokeWidth: 0, fill: "hsl(var(--primary))", shadow: "0 0 20px rgba(var(--primary-rgb), 0.5)" }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>
@@ -328,29 +374,29 @@ export function BattingDashboard({ stats, recentMatches, format, isLoading: pare
       {/* Seasonal Velocity */}
       <div className="p-10 rounded-[3rem] glass border-border/50 bg-white/5 dark:bg-white/1 shadow-2xl overflow-hidden relative">
         <div className="flex items-center gap-3 mb-10 relative z-10">
-           <div className="p-2 bg-slate-100 dark:bg-secondary rounded-lg">
-              <TrendingUp className="h-5 w-5 text-muted-foreground" />
-           </div>
-           <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] opacity-90">Seasonal Run Velocity</h3>
+          <div className="p-2 bg-slate-100 dark:bg-secondary rounded-lg">
+            <TrendingUp className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] opacity-90">Seasonal Run Velocity</h3>
         </div>
         <div className="h-[340px] w-full relative z-10">
-           <ResponsiveContainer width="100%" height="100%">
-             <BarChart data={yearStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
-               <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: "900", fill: "currentColor" }} className="text-muted-foreground" dy={15} />
-               <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: "900", fill: "currentColor" }} className="text-muted-foreground" />
-               <Tooltip
-                 cursor={{ fill: "rgba(var(--primary-rgb), 0.05)", radius: 10 }}
-                 contentStyle={{ background: "hsl(var(--popover))", backdropFilter: "blur(20px)", border: "1px solid hsl(var(--border))", borderRadius: "1.5rem", padding: "12px 16px", boxShadow: "0 20px 40px rgba(0,0,0,0.1)" }}
-                 labelStyle={{ color: "hsl(var(--muted-foreground))", fontSize: "10px", fontWeight: "900", textTransform: "uppercase", marginBottom: "8px", letterSpacing: "0.1em" }}
-               />
-               <Bar dataKey="runs" fill="hsl(var(--primary))" radius={[12, 12, 4, 4]} barSize={48}>
-                  {yearStats.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={index === yearStats.length - 1 ? "hsl(var(--primary))" : "rgba(var(--primary-rgb), 0.3)"} />
-                  ))}
-               </Bar>
-             </BarChart>
-           </ResponsiveContainer>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={yearStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
+              <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: "900", fill: "currentColor" }} className="text-muted-foreground" dy={15} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: "900", fill: "currentColor" }} className="text-muted-foreground" />
+              <Tooltip
+                cursor={{ fill: "rgba(var(--primary-rgb), 0.05)", radius: 10 }}
+                contentStyle={{ background: "hsl(var(--popover))", backdropFilter: "blur(20px)", border: "1px solid hsl(var(--border))", borderRadius: "1.5rem", padding: "12px 16px", boxShadow: "0 20px 40px rgba(0,0,0,0.1)" }}
+                labelStyle={{ color: "hsl(var(--muted-foreground))", fontSize: "10px", fontWeight: "900", textTransform: "uppercase", marginBottom: "8px", letterSpacing: "0.1em" }}
+              />
+              <Bar dataKey="runs" fill="hsl(var(--primary))" radius={[12, 12, 4, 4]} barSize={48}>
+                {yearStats.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={index === yearStats.length - 1 ? "hsl(var(--primary))" : "rgba(var(--primary-rgb), 0.3)"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </motion.div>
