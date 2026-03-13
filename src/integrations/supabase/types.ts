@@ -14,6 +14,92 @@ export type Database = {
   }
   public: {
     Tables: {
+      deliveries: {
+        Row: {
+          ball_length: string | null
+          ball_line: string | null
+          ball_number: number
+          ball_speed: number | null
+          batting_team: string | null
+          bowler: string
+          bowling_team: string | null
+          created_at: string | null
+          dismissal_kind: string | null
+          extras: number | null
+          fielder: string | null
+          id: number
+          innings: number
+          is_wicket: boolean | null
+          match_id: string | null
+          non_striker: string | null
+          over_number: number
+          phase: string | null
+          player_dismissed: string | null
+          runs_off_bat: number | null
+          striker: string
+          wagon_x: number | null
+          wagon_y: number | null
+        }
+        Insert: {
+          ball_length?: string | null
+          ball_line?: string | null
+          ball_number: number
+          ball_speed?: number | null
+          batting_team?: string | null
+          bowler: string
+          bowling_team?: string | null
+          created_at?: string | null
+          dismissal_kind?: string | null
+          extras?: number | null
+          fielder?: string | null
+          id?: number
+          innings: number
+          is_wicket?: boolean | null
+          match_id?: string | null
+          non_striker?: string | null
+          over_number: number
+          phase?: string | null
+          player_dismissed?: string | null
+          runs_off_bat?: number | null
+          striker: string
+          wagon_x?: number | null
+          wagon_y?: number | null
+        }
+        Update: {
+          ball_length?: string | null
+          ball_line?: string | null
+          ball_number?: number
+          ball_speed?: number | null
+          batting_team?: string | null
+          bowler?: string
+          bowling_team?: string | null
+          created_at?: string | null
+          dismissal_kind?: string | null
+          extras?: number | null
+          fielder?: string | null
+          id?: number
+          innings?: number
+          is_wicket?: boolean | null
+          match_id?: string | null
+          non_striker?: string | null
+          over_number?: number
+          phase?: string | null
+          player_dismissed?: string | null
+          runs_off_bat?: number | null
+          striker?: string
+          wagon_x?: number | null
+          wagon_y?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deliveries_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       match_player_stats: {
         Row: {
           bat_balls: number
@@ -27,11 +113,15 @@ export type Database = {
           bowl_overs: number
           bowl_runs: number
           bowl_wickets: number
+          catches: number | null
           created_at: string
+          inning: number
           is_batter: boolean
           is_bowler: boolean
           match_id: string
           player_id: string
+          run_outs: number | null
+          stumpings: number | null
           team: string
         }
         Insert: {
@@ -46,11 +136,15 @@ export type Database = {
           bowl_overs?: number
           bowl_runs?: number
           bowl_wickets?: number
+          catches?: number | null
           created_at?: string
+          inning?: number
           is_batter?: boolean
           is_bowler?: boolean
           match_id: string
           player_id: string
+          run_outs?: number | null
+          stumpings?: number | null
           team?: string
         }
         Update: {
@@ -65,11 +159,15 @@ export type Database = {
           bowl_overs?: number
           bowl_runs?: number
           bowl_wickets?: number
+          catches?: number | null
           created_at?: string
+          inning?: number
           is_batter?: boolean
           is_bowler?: boolean
           match_id?: string
           player_id?: string
+          run_outs?: number | null
+          stumpings?: number | null
           team?: string
         }
         Relationships: [
@@ -79,6 +177,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "matches"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_player_stats_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "bowler_delivery_patterns"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "match_player_stats_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "player_delivery_patterns"
+            referencedColumns: ["player_id"]
           },
           {
             foreignKeyName: "match_player_stats_player_id_fkey"
@@ -176,10 +288,12 @@ export type Database = {
           bowl_econ: number | null
           bowl_runs: number
           bowl_wickets: number
+          catches: number | null
           created_at: string
           format: string
           phase: string
           player_id: string
+          run_outs: number | null
         }
         Insert: {
           bat_balls?: number
@@ -192,10 +306,12 @@ export type Database = {
           bowl_econ?: number | null
           bowl_runs?: number
           bowl_wickets?: number
+          catches?: number | null
           created_at?: string
           format: string
           phase: string
           player_id: string
+          run_outs?: number | null
         }
         Update: {
           bat_balls?: number
@@ -208,12 +324,28 @@ export type Database = {
           bowl_econ?: number | null
           bowl_runs?: number
           bowl_wickets?: number
+          catches?: number | null
           created_at?: string
           format?: string
           phase?: string
           player_id?: string
+          run_outs?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "player_phase_stats_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "bowler_delivery_patterns"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "player_phase_stats_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "player_delivery_patterns"
+            referencedColumns: ["player_id"]
+          },
           {
             foreignKeyName: "player_phase_stats_player_id_fkey"
             columns: ["player_id"]
@@ -227,85 +359,108 @@ export type Database = {
         Row: {
           average: number | null
           balls: number
-          best_score: number
+          best_score: number | null
           bowl_average: number | null
           bowl_best_figures: string | null
-          bowl_five_wickets: number
+          bowl_five_wickets: number | null
           bowl_runs: number
           bowl_strike_rate: number | null
+          catches: number | null
           created_at: string
-          dismissals_breakdown: Json
+          dismissals_breakdown: Json | null
           econ: number | null
-          fifties: number
+          fifties: number | null
           format: string
           fours: number
-          hundreds: number
+          hundreds: number | null
           innings_bat: number
           innings_bowl: number
           matches: number
           not_outs: number
           overs: number
           player_id: string
+          run_outs: number | null
           runs: number
           sixes: number
           strike_rate: number | null
+          stumpings: number | null
           wickets: number
         }
         Insert: {
           average?: number | null
           balls?: number
-          best_score?: number
+          best_score?: number | null
           bowl_average?: number | null
           bowl_best_figures?: string | null
-          bowl_five_wickets?: number
+          bowl_five_wickets?: number | null
           bowl_runs?: number
           bowl_strike_rate?: number | null
+          catches?: number | null
           created_at?: string
-          dismissals_breakdown?: Json
+          dismissals_breakdown?: Json | null
           econ?: number | null
-          fifties?: number
+          fifties?: number | null
           format: string
           fours?: number
-          hundreds?: number
+          hundreds?: number | null
           innings_bat?: number
           innings_bowl?: number
           matches?: number
           not_outs?: number
           overs?: number
           player_id: string
+          run_outs?: number | null
           runs?: number
           sixes?: number
           strike_rate?: number | null
+          stumpings?: number | null
           wickets?: number
         }
         Update: {
           average?: number | null
           balls?: number
-          best_score?: number
+          best_score?: number | null
           bowl_average?: number | null
           bowl_best_figures?: string | null
-          bowl_five_wickets?: number
+          bowl_five_wickets?: number | null
           bowl_runs?: number
           bowl_strike_rate?: number | null
+          catches?: number | null
           created_at?: string
-          dismissals_breakdown?: Json
+          dismissals_breakdown?: Json | null
           econ?: number | null
-          fifties?: number
+          fifties?: number | null
           format?: string
           fours?: number
-          hundreds?: number
+          hundreds?: number | null
           innings_bat?: number
           innings_bowl?: number
           matches?: number
           not_outs?: number
           overs?: number
           player_id?: string
+          run_outs?: number | null
           runs?: number
           sixes?: number
           strike_rate?: number | null
+          stumpings?: number | null
           wickets?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "player_stats_summary_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "bowler_delivery_patterns"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "player_stats_summary_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "player_delivery_patterns"
+            referencedColumns: ["player_id"]
+          },
           {
             foreignKeyName: "player_stats_summary_player_id_fkey"
             columns: ["player_id"]
@@ -347,7 +502,6 @@ export type Database = {
           bat_balls?: number
           bat_dismissals?: number
           bat_fours?: number
-          bat_runs?: number
           bat_sixes?: number
           bat_sr?: number | null
           bowling_type?: string
@@ -356,6 +510,20 @@ export type Database = {
           player_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "player_vs_bowling_type_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "bowler_delivery_patterns"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "player_vs_bowling_type_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "player_delivery_patterns"
+            referencedColumns: ["player_id"]
+          },
           {
             foreignKeyName: "player_vs_bowling_type_player_id_fkey"
             columns: ["player_id"]
@@ -403,6 +571,36 @@ export type Database = {
       }
     }
     Views: {
+      bowler_delivery_patterns: {
+        Row: {
+          ball_length: string | null
+          ball_line: string | null
+          economy: number | null
+          format: string | null
+          phase: string | null
+          player_id: string | null
+          runs_conceded: number | null
+          strike_rate: number | null
+          total_balls: number | null
+          wickets: number | null
+        }
+        Relationships: []
+      }
+      player_delivery_patterns: {
+        Row: {
+          average: number | null
+          ball_length: string | null
+          ball_line: string | null
+          format: string | null
+          phase: string | null
+          player_id: string | null
+          strike_rate: number | null
+          total_balls: number | null
+          total_dismissals: number | null
+          total_runs: number | null
+        }
+        Relationships: []
+      }
       player_recent_matches_view: {
         Row: {
           bat_balls: number | null
@@ -416,14 +614,18 @@ export type Database = {
           bowl_overs: number | null
           bowl_runs: number | null
           bowl_wickets: number | null
+          catches: number | null
           event_name: string | null
           format: string | null
+          inning: number | null
           is_batter: boolean | null
           is_bowler: boolean | null
           match_date: string | null
           match_id: string | null
           player_id: string | null
           result: string | null
+          run_outs: number | null
+          stumpings: number | null
           team: string | null
           team1: string | null
           team2: string | null
@@ -436,6 +638,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "matches"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_player_stats_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "bowler_delivery_patterns"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "match_player_stats_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "player_delivery_patterns"
+            referencedColumns: ["player_id"]
           },
           {
             foreignKeyName: "match_player_stats_player_id_fkey"

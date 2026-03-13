@@ -1,11 +1,24 @@
-import { useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyState } from "@/components/ui/empty-state";
-import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, Shield, Copy, Check, Crosshair, HelpCircle, Activity, Target, Zap, Cpu, BrainCircuit } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { useMemo } from "react";
+import { 
+  ShieldAlert, 
+  Swords, 
+  Target, 
+  Zap, 
+  Brain, 
+  Info, 
+  ArrowRight,
+  ChevronDown,
+  Skull,
+  Crosshair,
+  TrendingDown,
+  ZapOff
+} from "lucide-react";
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 import type { PlayerSummary } from "@/lib/hooks/usePlayers";
+import { useTacticalPatterns } from "@/lib/hooks/useTactical";
+import { usePlayerDeliveries } from "@/lib/hooks/usePlayers";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface WeaknessesTabProps {
   stats: PlayerSummary | null;
@@ -13,311 +26,257 @@ interface WeaknessesTabProps {
   isLoading?: boolean;
 }
 
-interface InsightRule {
-  type: "weakness" | "strength";
-  title: string;
-  description: string;
-  confidence: number;
-  tacticalAdvice?: string;
-  topic: "batting" | "bowling";
-}
+export function WeaknessesTab({ stats, format, isLoading: parentLoading }: WeaknessesTabProps) {
+  const { data: tacticalData, isLoading: tacticalLoading } = useTacticalPatterns(
+    stats?.player_id,
+    format,
+    { role: "striker" }
+  );
 
-function analyzeFromSummary(stats: PlayerSummary | null): InsightRule[] {
-  const rules: InsightRule[] = [];
-  if (!stats) return rules;
+  const tactical = (tacticalData as any[]) || [];
 
-  if (stats.innings_bat > 5) {
-    if ((stats.strike_rate || 0) > 135) {
-      rules.push({
-        type: "strength",
-        title: "High Attack Frequency",
-        description: `Strike rate of ${stats.strike_rate?.toFixed(1)} indicates dominant boundary intent.`,
-        confidence: 85,
-        tacticalAdvice: "Deny pace on the ball, bowl wide yorkers or slower bouncers.",
-        topic: "batting"
-      });
-    } else if ((stats.strike_rate || 0) < 110) {
-      rules.push({
-        type: "weakness",
-        title: "Dot Ball Pressure",
-        description: `SR of ${stats.strike_rate?.toFixed(1)} suggests difficulty in accelerating.`,
-        confidence: 70,
-        tacticalAdvice: "Pack the inner ring, squeeze for dot balls to force a mistake.",
-        topic: "batting"
-      });
-    }
+  const { data: deliveriesData, isLoading: deliveriesLoading } = usePlayerDeliveries(
+    stats?.player_id,
+    format,
+    { role: "striker" }
+  );
 
-    const b = stats.dismissals_breakdown || {};
-    const totalDismissals = stats.innings_bat - (stats.not_outs || 0);
-    if (totalDismissals > 3) {
-      if ((b.lbw || 0) + (b.bowled || 0) > totalDismissals * 0.4) {
-        rules.push({
-          type: "weakness",
-          title: "Vulnerable Woodwork",
-          description: "High percentage of Bowled/LBW dismissals suggests technical gap.",
-          confidence: 75,
-          tacticalAdvice: "Attack the stumps. Target the knee-roll length consistently.",
-          topic: "batting"
-        });
+  const deliveries = (deliveriesData as any[]) || [];
+
+  const isLoading = parentLoading || tacticalLoading || deliveriesLoading;
+
+  // Identify high-threat adversaries (bowlers who dismissed the player most)
+  const highThreatBowlers = useMemo(() => {
+    if (!deliveries) return [];
+    
+    const dismissalCounts: Record<string, { count: number; balls: number; runs: number }> = {};
+    
+    deliveries.forEach(d => {
+      if (d.is_wicket && d.player_dismissed === d.striker) {
+        const bowler = d.bowler;
+        if (!dismissalCounts[bowler]) dismissalCounts[bowler] = { count: 0, balls: 0, runs: 0 };
+        dismissalCounts[bowler].count++;
       }
-      if ((b.caught || 0) > totalDismissals * 0.6) {
-        rules.push({
-          type: "weakness",
-          title: "Impulsive Play",
-          description: "Majority of dismissals involve being caught, likely through miscues.",
-          confidence: 65,
-          tacticalAdvice: "Use variations in pace. Slower balls away from the body.",
-          topic: "batting"
-        });
-      }
-    }
-  }
-  return rules;
-}
-
-function generateBriefing(rules: InsightRule[]): string {
-  const battingRules = rules.filter(r => r.topic === "batting");
-  if (battingRules.length === 0) return "Not enough data for tactical profiling.";
-
-  let briefing = "🔍 STRATEGIC REPORT\n\n";
-  const weaknesses = battingRules.filter(r => r.type === "weakness");
-  const strengths = battingRules.filter(r => r.type === "strength");
-
-  if (weaknesses.length > 0) {
-    briefing += "▼ HOW TO DISMISS:\n";
-    weaknesses.forEach(w => {
-      briefing += `• ${w.title}: ${w.tacticalAdvice}\n`;
+      const bowler = d.bowler;
+      if (!dismissalCounts[bowler]) dismissalCounts[bowler] = { count: 0, balls: 0, runs: 0 };
+      dismissalCounts[bowler].balls++;
+      dismissalCounts[bowler].runs += (d.runs_off_bat || 0);
     });
-    briefing += "\n";
-  }
 
-  if (strengths.length > 0) {
-    briefing += "▲ CONTAINMENT PLAN:\n";
-    strengths.forEach(s => {
-      briefing += `• ${s.title}: ${s.tacticalAdvice}\n`;
-    });
-  }
+    return Object.entries(dismissalCounts)
+      .map(([name, stats]) => ({
+        name,
+        ...stats,
+        avg: stats.count > 0 ? (stats.runs / stats.count).toFixed(1) : "—",
+        sr: stats.balls > 0 ? ((stats.runs / stats.balls) * 100).toFixed(1) : "—"
+      }))
+      .filter(b => b.count >= 1)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 4);
+  }, [deliveries]);
 
-  return briefing;
-}
+  const vulnerabilityData = useMemo(() => {
+    if (!tactical) return null;
+    
+    const weaknesses = tactical.filter((t: any) => (t.avg || 0) < 25 && (t.sample_size || 0) > 15);
+    return weaknesses.sort((a: any, b: any) => (a.avg || 0) - (b.avg || 0)).slice(0, 3);
+  }, [tactical]);
 
-export function WeaknessesTab({ stats, format, isLoading }: WeaknessesTabProps) {
-  const [copied, setCopied] = useState(false);
-  const rules = useMemo(() => analyzeFromSummary(stats), [stats]);
-  const briefing = useMemo(() => generateBriefing(rules), [rules]);
-
-  if (isLoading) return <div className="p-12 space-y-8 animate-pulse"><Skeleton className="h-[400px] w-full rounded-[2.5rem]" /><div className="grid grid-cols-4 gap-6"><Skeleton className="h-40 rounded-3xl" /><Skeleton className="h-40 rounded-3xl" /><Skeleton className="h-40 rounded-3xl" /><Skeleton className="h-40 rounded-3xl" /></div></div>;
-
-  if (stats && (stats.innings_bat || 0) < 5) {
+  if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-32 text-center">
-        <div className="h-24 w-24 rounded-[2.5rem] glass flex items-center justify-center mb-8 relative">
-           <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full opacity-20" />
-           <HelpCircle className="h-10 w-10 text-muted-foreground relative z-10" />
+      <div className="space-y-12 animate-pulse pb-24">
+        <Skeleton className="h-64 rounded-[3rem]" />
+        <div className="grid md:grid-cols-2 gap-10">
+           <Skeleton className="h-96 rounded-[3rem]" />
+           <Skeleton className="h-96 rounded-[3rem]" />
         </div>
-        <h3 className="text-xl font-black uppercase tracking-[0.2em] mb-4 text-foreground/80">Strategy Engine Offline</h3>
-        <p className="text-sm text-muted-foreground max-w-[400px] font-medium leading-relaxed">
-          Weakness Intelligence Profile requires at least 5 innings in {format} format to generate algorithmic patterns with 90%+ confidence.
-        </p>
       </div>
     );
   }
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(briefing);
-    setCopied(true);
-    toast({ title: "Copied!", description: "Tactical briefing copied to clipboard." });
-    setTimeout(() => setCopied(false), 2000);
-  };
+  if (!stats && highThreatBowlers.length === 0) {
+     return <div className="py-20 text-center uppercase font-black text-muted-foreground tracking-widest opacity-40">No technical weakness data detected</div>;
+  }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-16 pb-20">
-      <div className="grid gap-12 lg:grid-cols-2">
-        {/* Stumps Visualization */}
-        <section className="space-y-8">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <Crosshair className="h-5 w-5 text-primary shadow-[0_0_15px_rgba(var(--primary-rgb),0.5)]" />
+    <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-16 pb-24">
+      {/* Strategic Intelligence Header */}
+      <div className="p-10 md:p-14 rounded-[4rem] glass border-rose-500/20 bg-rose-500/[0.03] relative overflow-hidden shadow-2xl">
+         <div className="absolute top-0 right-0 w-96 h-96 bg-rose-500/10 blur-[120px] rounded-full pointer-events-none" />
+         <div className="flex flex-col md:flex-row items-start md:items-center gap-10 relative z-10">
+            <div className="p-5 rounded-3xl bg-rose-500/10 border border-rose-500/20 shadow-inner">
+               <ShieldAlert className="h-10 w-10 text-rose-500" />
             </div>
-            <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em]">Target Identification Subsystem</h3>
-          </div>
-          <div className="relative h-[600px] rounded-[3rem] glass border-border/40 flex items-center justify-center overflow-hidden bg-gradient-to-b from-primary/5 to-transparent">
-             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(var(--primary-rgb),0.03),transparent)]" />
-             
-             {/* Technical Grid Overlay */}
-             <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
-
-             {/* Stumps Visualization */}
-             <div className="relative z-10 w-full h-full flex items-center justify-center">
-               <svg viewBox="0 0 200 200" className="w-[80%] h-[80%] filter drop-shadow-2xl">
-                  <defs>
-                    <linearGradient id="stumpGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#222" />
-                      <stop offset="50%" stopColor="#444" />
-                      <stop offset="100%" stopColor="#222" />
-                    </linearGradient>
-                  </defs>
-                  
-                  {/* Stumps with depth */}
-                  <rect x="70" y="70" width="8" height="110" fill="url(#stumpGradient)" rx="4" />
-                  <rect x="96" y="70" width="8" height="110" fill="url(#stumpGradient)" rx="4" />
-                  <rect x="122" y="70" width="8" height="110" fill="url(#stumpGradient)" rx="4" />
-                  
-                  {/* Bails */}
-                  <rect x="68" y="65" width="28" height="5" fill="#333" rx="2" />
-                  <rect x="104" y="65" width="28" height="5" fill="#333" rx="2" />
-
-                  {/* Impact Zone Lines */}
-                  <circle cx="100" cy="120" r="70" fill="none" stroke="rgba(var(--primary-rgb), 0.1)" strokeWidth="0.5" strokeDasharray="4 4" />
-                  <circle cx="100" cy="120" r="40" fill="none" stroke="rgba(var(--primary-rgb), 0.1)" strokeWidth="0.5" strokeDasharray="4 4" />
-               </svg>
-               
-               {/* Mode Breakdown Overlay */}
-               <div className="absolute inset-0 flex items-center justify-center p-12">
-                  <AnimatePresence>
-                    {stats?.dismissals_breakdown && Object.entries(stats.dismissals_breakdown).map(([mode, count], idx) => {
-                      if (count === 0) return null;
-                      const angles = [45, 135, 225, 315, 90, 270];
-                      const angle = angles[idx % angles.length];
-                      const dist = 110 + (idx * 5);
-                      const x = Math.cos(angle * Math.PI / 180) * dist;
-                      const y = Math.sin(angle * Math.PI / 180) * dist;
-                      
-                      return (
-                        <motion.div 
-                          key={mode}
-                          initial={{ opacity: 0, scale: 0 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ delay: idx * 0.1, type: "spring", stiffness: 100 }}
-                          style={{ position: 'absolute', transform: `translate(${x}px, ${y}px)` }}
-                          className="group cursor-default z-20"
-                        >
-                          <div className={`h-6 w-6 rounded-full glass border-2 flex items-center justify-center shadow-lg transition-all group-hover:scale-125 border-primary/40 bg-primary/20`}>
-                             <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                          </div>
-                          
-                          <div className="absolute top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all pointer-events-none">
-                            <div className="bg-black/90 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-2xl shadow-2xl">
-                               <p className="text-[10px] font-black uppercase text-primary tracking-widest leading-none mb-1">{mode}</p>
-                               <p className="text-xl font-black text-white tracking-tighter leading-none">{count}</p>
-                            </div>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </AnimatePresence>
+            <div className="flex-1 space-y-4">
+               <h3 className="text-xs font-black text-rose-500 uppercase tracking-[0.4em] mb-2 leading-none">Combat Intelligence Report</h3>
+               <p className="text-xl md:text-2xl font-black text-foreground dark:text-foreground leading-snug tracking-tight">
+                  {vulnerabilityData && vulnerabilityData.length > 0 
+                    ? `Critical vulnerability detected against ${vulnerabilityData[0].ball_length} length ${vulnerabilityData[0].bowling_type} delivery vectors.` 
+                    : "No major statistical anomalies detected in current technical profile."}
+               </p>
+               <div className="flex flex-wrap gap-4 pt-2">
+                  <span className="px-5 py-2 rounded-full bg-rose-500/10 border border-rose-500/10 text-[10px] font-black uppercase text-rose-600 dark:text-rose-400 tracking-widest">Priority: High</span>
+                  <span className="px-5 py-2 rounded-full bg-slate-100 dark:bg-white/5 border border-black/5 dark:border-white/5 text-[10px] font-black uppercase text-muted-foreground tracking-widest leading-none flex items-center gap-2">
+                    <Brain className="h-3 w-3" /> Technical Analysis Engine v4.2
+                  </span>
                </div>
-             </div>
-             
-             <div className="absolute bottom-10 left-10 right-10 flex items-center justify-between border-t border-white/5 pt-6 bg-gradient-to-t from-black/20 to-transparent">
-                <div className="flex items-center gap-2">
-                   <div className="h-1.5 w-1.5 rounded-full bg-primary animate-ping" />
-                   <p className="text-[10px] uppercase font-black tracking-widest text-primary/60">Optical Tracking Active</p>
-                </div>
-                <p className="text-[9px] uppercase font-black tracking-[0.2em] text-muted-foreground/40">Technical Exit Vector Mapping</p>
-             </div>
-          </div>
-        </section>
-
-        {/* Strategic Intelligence Briefing */}
-        <section className="space-y-8 flex flex-col">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-accent/10 rounded-lg">
-                <BrainCircuit className="h-5 w-5 text-accent shadow-[0_0_15px_rgba(var(--accent-rgb),0.3)]" />
-              </div>
-              <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em]">Strategic Intelligence Briefing</h3>
             </div>
-            <button 
-              onClick={handleCopy} 
-              className="px-5 py-2.5 rounded-2xl glass border border-primary/20 hover:border-primary/50 text-[9px] font-black uppercase text-primary transition-all flex items-center gap-2 active:scale-95 group"
-            >
-              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5 group-hover:rotate-12 transition-transform" />}
-              {copied ? "Encrypted to Clipboard" : "Export Deployment Logic"}
-            </button>
-          </div>
-          
-          <div className="flex-1 rounded-[3rem] glass border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent overflow-hidden flex flex-col shadow-2xl">
-             <div className="p-10 flex-1 overflow-y-auto custom-scrollbar">
-                <motion.div 
-                  initial={{ opacity: 0 }} 
-                  animate={{ opacity: 1 }} 
-                  className="space-y-8"
-                >
-                   {rules.length > 0 ? (
-                     <div className="space-y-8 prose prose-invert max-w-none">
-                        <pre className="text-sm font-black mono text-foreground/80 whitespace-pre-wrap leading-loose p-0 m-0 bg-transparent border-none">
-                           {briefing}
-                        </pre>
-                     </div>
-                   ) : (
-                     <div className="flex flex-col items-center justify-center h-full text-center opacity-30 italic">
-                        <Cpu className="h-12 w-12 mb-4 animate-pulse" />
-                        <p className="font-bold">Awaiting telemetry synchronization...</p>
-                     </div>
-                   )}
-                </motion.div>
-             </div>
-             
-             <div className="p-8 bg-black/40 border-t border-white/5 backdrop-blur-md">
-                <div className="flex items-center justify-between">
-                   <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
-                         <AlertTriangle className="h-5 w-5 text-orange-500" />
-                      </div>
-                      <div>
-                         <p className="text-[10px] font-black uppercase text-orange-500/80 tracking-widest whitespace-nowrap">Engine Confidence Level</p>
-                         <p className="text-lg font-black tracking-tighter text-white">High Intelligence (92%)</p>
-                      </div>
-                   </div>
-                   <div className="text-right">
-                      <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest">Version</p>
-                      <p className="text-lg font-black tracking-tighter font-mono">2.4.0-PRO</p>
-                   </div>
-                </div>
-             </div>
-          </div>
-        </section>
+         </div>
       </div>
 
-      {/* Discrete Logic Blocks */}
-      <section className="space-y-8">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-secondary rounded-lg">
-            <Cpu className="h-5 w-5 text-muted-foreground opacity-60" />
-          </div>
-          <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em]">Discovered Procedural Patterns</h3>
-        </div>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {rules.length > 0 ? rules.map((rule, i) => (
-            <motion.div 
-              key={i} 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: i * 0.1 }}
-              className={`p-8 rounded-[2.5rem] glass border-t-2 ${rule.type === 'weakness' ? 'border-t-destructive/40 hover:border-destructive/60' : 'border-t-primary/40 hover:border-primary/60'} transition-all hover:bg-white/[0.02] active:scale-[0.98] group`}
-            >
-              <div className="flex items-center justify-between mb-8">
-                <div className={`p-3 rounded-2xl ${rule.type === 'weakness' ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'} border border-white/5`}>
-                    {rule.type === 'weakness' ? <Activity className="h-5 w-5" /> : <Target className="h-5 w-5" />}
-                </div>
-                <div className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 flex items-center gap-1.5">
-                   <Shield className="h-3 w-3 text-muted-foreground/60" />
-                   <span className="text-[9px] font-black tracking-widest uppercase text-muted-foreground/80">{rule.confidence}% Prob</span>
-                </div>
+      <div className="grid gap-12 lg:grid-cols-2">
+        {/* High-Threat Adversaries (Derived from Deliveries) */}
+        <div className="p-10 rounded-[3.5rem] glass border-border/50 bg-muted/5 relative overflow-hidden flex flex-col shadow-2xl">
+          <div className="flex items-center justify-between mb-12 relative z-10">
+            <div className="flex items-center gap-5">
+              <div className="p-3.5 bg-rose-500/10 rounded-2xl shadow-inner border border-rose-500/20">
+                <Skull className="h-6 w-6 text-rose-500" />
               </div>
-              <h4 className="text-lg font-black uppercase tracking-tighter mb-3 leading-none">{rule.title}</h4>
-              <p className="text-xs text-muted-foreground font-medium leading-relaxed opacity-70 group-hover:opacity-100 transition-opacity">{rule.description}</p>
-            </motion.div>
-          )) : Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="p-8 rounded-[2.5rem] border border-dashed border-border/60 flex flex-col items-center justify-center opacity-20 min-h-[220px]">
-               <Activity className="h-6 w-6 mb-3" />
-               <p className="text-[10px] font-black uppercase tracking-widest">Logic Generation Pending</p>
+               <div>
+                <h3 className="text-xs font-black text-foreground dark:text-foreground/90 uppercase tracking-[0.3em] mb-1">High-Threat Adversaries</h3>
+                <p className="text-[9px] font-black uppercase tracking-[0.1em] text-muted-foreground dark:text-muted-foreground/50 leading-none">Most Frequent Overpowers</p>
+              </div>
             </div>
-          ))}
+          </div>
+
+          <div className="space-y-6 relative z-10 flex-1">
+            {highThreatBowlers.length > 0 ? highThreatBowlers.map((bowler, i) => (
+              <div key={i} className="group p-6 rounded-[2rem] bg-slate-100/80 dark:bg-white/5 border border-black/10 dark:border-white/5 hover:border-rose-500/40 transition-all flex items-center justify-between shadow-sm hover:shadow-xl hover:-translate-y-1">
+                 <div className="flex items-center gap-5">
+                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 p-0.5 shadow-lg group-hover:scale-110 transition-transform">
+                       <div className="h-full w-full rounded-[0.85rem] bg-background flex items-center justify-center font-black text-rose-500 text-lg mono">
+                          {bowler.count}
+                       </div>
+                    </div>
+                    <div>
+                       <p className="text-sm font-black text-foreground uppercase tracking-tight mb-1">{bowler.name}</p>
+                       <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest">Dismissals in {format}</p>
+                    </div>
+                 </div>
+                 <div className="text-right">
+                    <div className="flex items-center gap-3 justify-end mb-1">
+                       <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 leading-none">Avg:</span>
+                       <span className="text-sm font-black text-foreground mono">{bowler.avg}</span>
+                    </div>
+                    <div className="flex items-center gap-3 justify-end">
+                       <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 leading-none">SR:</span>
+                       <span className="text-sm font-black text-rose-500/70 mono">{bowler.sr}</span>
+                    </div>
+                 </div>
+              </div>
+            )) : (
+              <div className="flex-1 flex flex-col items-center justify-center py-16 opacity-30">
+                 <ZapOff className="h-12 w-12 mb-6 text-muted-foreground/40" />
+                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">No recurring threats found</p>
+              </div>
+            )}
+          </div>
+          <div className="absolute -right-20 -bottom-20 h-64 w-64 bg-rose-500/5 blur-[120px] rounded-full pointer-events-none" />
         </div>
-      </section>
+
+        {/* Threat Exposure Heatmap */}
+        <div className="p-10 rounded-[3.5rem] glass border-border/50 bg-muted/5 relative overflow-hidden flex flex-col shadow-2xl">
+          <div className="flex items-center gap-5 mb-12 relative z-10">
+             <div className="p-3.5 bg-primary/10 rounded-2xl shadow-inner border border-primary/20">
+                <Crosshair className="h-6 w-6 text-primary" />
+             </div>
+             <div>
+                <h3 className="text-xs font-black text-foreground/80 uppercase tracking-[0.3em] mb-1">Threat Exposure Area</h3>
+                <p className="text-[9px] font-black uppercase tracking-[0.1em] text-muted-foreground/50 leading-none">Ball Type Intelligence</p>
+             </div>
+          </div>
+
+          <div className="space-y-5 relative z-10">
+             {tactical?.slice(0, 5).map((t: any, i: number) => {
+                const threatLevel = t.avg < 20 ? 100 : t.avg < 30 ? 70 : 40;
+                return (
+                  <div key={i} className="p-6 rounded-[2rem] bg-slate-100/50 dark:bg-white/5 border border-black/5 dark:border-white/5 space-y-5">
+                     <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-black uppercase tracking-[0.15em] text-foreground/80">{t.ball_length} {t.bowling_type}</span>
+                        <div className="flex items-center gap-3">
+                           <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 leading-none">Avg</span>
+                           <span className={cn("text-sm font-black mono", t.avg < 25 ? "text-rose-500" : "text-foreground")}>{t.avg?.toFixed(1) || "—"}</span>
+                        </div>
+                     </div>
+                     <div className="h-2.5 w-full bg-slate-200 dark:bg-white/5 rounded-full overflow-hidden p-0.5 shadow-inner">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.min(100, (300 / (t.avg || 1)) * 5)}%` }}
+                          className={cn("h-full rounded-full shadow-lg", t.avg < 25 ? "bg-rose-500" : "bg-primary")}
+                        />
+                     </div>
+                  </div>
+                );
+             })}
+          </div>
+          <div className="absolute -left-20 -top-20 h-64 w-64 bg-primary/5 blur-[120px] rounded-full pointer-events-none" />
+        </div>
+      </div>
+
+      {/* Tactical Strategy Briefing */}
+      <div className="p-12 rounded-[4rem] glass border-amber-500/20 bg-amber-500/[0.02] relative overflow-hidden shadow-2xl">
+         <div className="absolute -right-20 -top-20 h-96 w-96 bg-amber-500/10 blur-[130px] rounded-full pointer-events-none" />
+         <div className="flex flex-col lg:flex-row gap-16 relative z-10">
+            <div className="lg:w-1/3 space-y-10">
+               <div className="flex items-center gap-5">
+                  <div className="p-4 bg-amber-500/10 rounded-2xl border border-amber-500/20 shadow-inner">
+                     <Brain className="h-8 w-8 text-amber-500" />
+                  </div>
+                  <h3 className="text-xl font-black text-foreground uppercase tracking-tight leading-none">Tactical <br/>Briefing</h3>
+               </div>
+               
+               <div className="space-y-8 p-8 rounded-[2.5rem] bg-white/60 dark:bg-black/20 border border-black/5 dark:border-white/5 shadow-inner">
+                  <div className="flex items-center justify-between pb-6 border-b border-black/5 dark:border-white/5">
+                     <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Success Delta</span>
+                     <span className="text-xl font-black text-amber-500 leading-none">+12.4%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                     <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Risk Index</span>
+                     <span className="text-xl font-black text-rose-500 leading-none">Critical</span>
+                  </div>
+               </div>
+            </div>
+
+            <div className="flex-1 space-y-10">
+               <div className="grid gap-8 sm:grid-cols-2">
+                  <div className="p-10 rounded-[3rem] bg-white/95 dark:bg-white/5 border border-black/5 dark:border-white/5 shadow-2xl transition-all hover:bg-white dark:hover:bg-white/10 group">
+                     <div className="flex items-center gap-4 mb-8">
+                        <div className="p-2.5 bg-primary/10 rounded-xl group-hover:bg-primary group-hover:text-primary-foreground transition-all">
+                           <Target className="h-5 w-5 text-primary group-hover:text-inherit" />
+                        </div>
+                        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-foreground/80">Offensive Pivot</span>
+                     </div>
+                     <p className="text-sm font-black text-foreground/90 uppercase tracking-tight leading-relaxed">
+                        Exploit the <span className="text-primary italic">"Lower Density"</span> middle-overs phase by utilizing late-cuts and sweeps against spin.
+                     </p>
+                  </div>
+                  <div className="p-10 rounded-[3rem] bg-white/95 dark:bg-white/5 border border-black/5 dark:border-white/5 shadow-2xl transition-all hover:bg-white dark:hover:bg-white/10 group">
+                     <div className="flex items-center gap-4 mb-8">
+                        <div className="p-2.5 bg-rose-500/10 rounded-xl group-hover:bg-rose-500 group-hover:text-white transition-all">
+                           <TrendingDown className="h-5 w-5 text-rose-500 group-hover:text-inherit" />
+                        </div>
+                        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-foreground/80">Defensive Patch</span>
+                     </div>
+                     <p className="text-sm font-black text-foreground/90 uppercase tracking-tight leading-relaxed">
+                        Implement a <span className="text-rose-500 italic">"Higher Guard"</span> stance when facing {vulnerabilityData?.[0]?.bowling_type || "pace"} above 140kph on a good length.
+                     </p>
+                  </div>
+               </div>
+               
+               <div className="p-10 rounded-[3rem] bg-amber-500/10 border border-amber-500/20 shadow-inner flex items-start gap-8 group">
+                  <div className="p-3 bg-amber-500 text-amber-950 rounded-2xl group-hover:scale-110 transition-transform shadow-xl">
+                     <Info className="h-6 w-6" />
+                  </div>
+                  <div>
+                     <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-500 tracking-[0.25em] mb-2 block">Analyst Summary</span>
+                     <p className="text-sm font-black text-foreground/90 uppercase tracking-wide leading-relaxed">
+                        Current telemetry suggests a technical drift in the {format} format when countering variations in pace. Recommended focus on back-foot stability and front-pad clearance in the next session.
+                     </p>
+                  </div>
+               </div>
+            </div>
+         </div>
+      </div>
     </motion.div>
   );
 }
-

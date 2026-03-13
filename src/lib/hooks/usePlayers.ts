@@ -71,6 +71,33 @@ export interface PlayerMatchRow {
   event_name: string | null;
 }
 
+export interface Delivery {
+  id: string;
+  match_id: string;
+  innings: number;
+  over_number: number;
+  ball_number: number;
+  striker: string;
+  non_striker: string;
+  bowler: string;
+  batting_team: string;
+  bowling_team: string;
+  runs_off_bat: number;
+  extras: number;
+  is_wicket: boolean;
+  player_dismissed: string | null;
+  dismissal_kind: string | null;
+  fielder: string | null;
+  phase: string;
+  ball_length: string | null;
+  ball_line: string | null;
+  ball_speed: number | null;
+  wagon_x: number | null;
+  wagon_y: number | null;
+  format: string;
+  match_date: string;
+}
+
 // ── Hooks ───────────────────────────────────────────
 
 export function usePlayerSearch(query: string, gender: "all" | "male" | "female" = "all") {
@@ -110,14 +137,20 @@ export function usePlayer(id: string | undefined) {
   });
 }
 
-export function usePlayerSummary(playerId: string | undefined) {
+export function usePlayerSummary(playerId: string | undefined, format?: string) {
   return useQuery({
-    queryKey: ["player-summary", playerId],
+    queryKey: ["player-summary", playerId, format],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("player_stats_summary")
         .select("*")
         .eq("player_id", playerId!);
+      
+      if (format && format !== "All") {
+        q = q.eq("format", format);
+      }
+
+      const { data, error } = await q;
       if (error) throw error;
       return (data as unknown) as PlayerSummary[];
     },
@@ -127,16 +160,22 @@ export function usePlayerSummary(playerId: string | undefined) {
 }
 
 // Hook to get aggregated totals across all formats for a player
-export function usePlayerTotals(playerId: string | undefined) {
+export function usePlayerTotals(playerId: string | undefined, format?: string) {
   return useQuery({
-    queryKey: ["player-totals", playerId],
+    queryKey: ["player-totals", playerId, format],
     queryFn: async () => {
       if (!playerId) return null;
       
-      const { data: summaries, error } = await supabase
+      let q = supabase
         .from("player_stats_summary")
         .select("*")
         .eq("player_id", playerId!);
+      
+      if (format && format !== "All") {
+        q = q.eq("format", format);
+      }
+
+      const { data: summaries, error } = await q;
       
       if (error) throw error;
       
@@ -353,7 +392,7 @@ export function usePlayerVsBowling(playerId: string | undefined, format?: string
         .from("player_vs_bowling_type")
         .select("*")
         .eq("player_id", playerId!);
-      if (format) q = q.eq("format", format);
+      if (format && format.toUpperCase() !== "ALL") q = q.eq("format", format);
       const { data, error } = await q;
       if (error) throw error;
       return data;
@@ -371,10 +410,74 @@ export function usePlayerPhaseStats(playerId: string | undefined, format?: strin
         .from("player_phase_stats")
         .select("*")
         .eq("player_id", playerId!);
-      if (format) q = q.eq("format", format);
+      if (format && format.toUpperCase() !== "ALL") q = q.eq("format", format);
       const { data, error } = await q;
       if (error) throw error;
       return data;
+    },
+    enabled: !!playerId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function usePlayerDeliveries(
+  playerId: string | undefined,
+  format?: string,
+  filters?: {
+    phase?: string;
+    ball_length?: string;
+    ball_line?: string;
+    is_wicket?: boolean;
+    role?: "striker" | "bowler";
+  }
+) {
+  return useQuery({
+    queryKey: ["player-deliveries", playerId, format, filters],
+    queryFn: async () => {
+      if (!playerId) return [];
+      
+      // First get the player name
+      const { data: player } = await supabase
+        .from("players")
+        .select("name")
+        .eq("id", playerId)
+        .single();
+      
+      if (!player) return [];
+
+      let selectStr = "*, matches:match_id(format, match_date)";
+      if (format && format !== "All") {
+        selectStr = "*, matches:match_id!inner(format, match_date)";
+      }
+
+      let q = supabase
+        .from("deliveries")
+        .select(selectStr);
+
+      // Filter by player role
+      if (filters?.role === "striker") {
+        q = q.eq("striker", player.name);
+      } else if (filters?.role === "bowler") {
+        q = q.eq("bowler", player.name);
+      } else {
+        q = q.or(`striker.eq."${player.name}",bowler.eq."${player.name}"`);
+      }
+
+      if (filters?.phase) q = q.eq("phase", filters.phase);
+      if (filters?.ball_length) q = q.eq("ball_length", filters.ball_length);
+      if (filters?.ball_line) q = q.eq("ball_line", filters.ball_line);
+      if (format && format !== "All") {
+        q = q.eq("matches.format", format);
+      }
+
+      const { data, error } = await q;
+      if (error) throw error;
+
+      return (data as any[]).map(row => ({
+        ...row,
+        format: row.matches?.format,
+        match_date: row.matches?.match_date
+      })) as Delivery[];
     },
     enabled: !!playerId,
     staleTime: 5 * 60 * 1000,

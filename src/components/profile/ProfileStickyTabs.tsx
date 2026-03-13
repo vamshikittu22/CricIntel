@@ -8,6 +8,7 @@ import {
   Hand,
   TrendingUp,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export type ProfileTab = "overview" | "batting" | "bowling" | "weaknesses" | "fielding" | "form";
 
@@ -42,7 +43,7 @@ export function ProfileStickyTabs({ activeTab, onTabChange }: ProfileStickyTabsP
   }, [activeIndex]);
 
   return (
-    <div className="sticky top-16 z-30 border-b border-white/5 bg-background/50 backdrop-blur-3xl shadow-2xl">
+    <div className="sticky top-16 z-30 border-b border-black/5 dark:border-white/5 bg-white/90 dark:bg-background/80 backdrop-blur-3xl shadow-xl ring-1 ring-black/5">
       <div className="container mx-auto px-4">
         <div
           ref={scrollRef}
@@ -54,25 +55,29 @@ export function ProfileStickyTabs({ activeTab, onTabChange }: ProfileStickyTabsP
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
-                className={`relative flex items-center gap-2 px-6 py-4 text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-300 rounded-xl ${
+                className={cn(
+                  "relative flex items-center gap-3 px-8 py-5 text-[11px] font-black uppercase tracking-[0.2em] whitespace-nowrap transition-all duration-300 rounded-2xl",
                   isActive
-                    ? "text-white"
-                    : "text-muted-foreground hover:text-white hover:bg-white/5"
-                }`}
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-slate-100 dark:hover:bg-muted/50"
+                )}
               >
-                <span className={`transition-transform duration-300 ${isActive ? "text-primary scale-110" : ""}`}>{tab.icon}</span>
-                {tab.label}
+                <span className={cn(
+                   "transition-all duration-300",
+                   isActive ? "text-primary scale-125 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]" : "opacity-40"
+                )}>{tab.icon}</span>
+                <span className="relative z-10">{tab.label}</span>
                 {isActive && (
                   <motion.div
                     layoutId="active-nav-glow"
-                    className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent"
+                    className="absolute inset-x-4 bottom-0 h-[3px] bg-primary rounded-t-full shadow-[0_0_15px_rgba(var(--primary-rgb),0.5)]"
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
                   />
                 )}
                 {isActive && (
                   <motion.div
                     layoutId="active-pill"
-                    className="absolute inset-0 bg-primary/10 rounded-xl -z-10"
+                    className="absolute inset-0 bg-primary/10 dark:bg-primary/5 rounded-2xl -z-10 shadow-inner"
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
                   />
                 )}

@@ -1,6 +1,6 @@
 import { useParams } from "react-router-dom";
 import { AppHeader } from "@/components/AppHeader";
-import { usePlayer, usePlayerSummary, usePlayerRecentMatches } from "@/lib/hooks/usePlayers";
+import { usePlayer, usePlayerSummary, usePlayerRecentMatches, type PlayerSummary } from "@/lib/hooks/usePlayers";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlayerProfileCard } from "@/components/profile/PlayerProfileCard";
 import { ProfileStickyTabs, ProfileTab } from "@/components/profile/ProfileStickyTabs";
@@ -12,7 +12,7 @@ import { FieldingTab } from "@/components/fielding/FieldingTab";
 import { FormTab } from "@/components/form/FormTab";
 import { EmptyState } from "@/components/ui/empty-state";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { usePlayerTotals } from "@/lib/hooks/usePlayers";
 
 export default function PlayerProfile() {
@@ -23,11 +23,18 @@ export default function PlayerProfile() {
   const { data: summaries, isLoading: summaryLoading } = usePlayerSummary(id);
   const { data: totals, isLoading: totalsLoading } = usePlayerTotals(id);
 
+  // Derive formats played from the actual data summary if missing or incomplete
+  const formatsPlayed = useMemo(() => {
+    if (!summaries || summaries.length === 0) return (player?.formats_played || ["All"]).map(f => f.toUpperCase());
+    const found = summaries.map(s => s.format.toUpperCase());
+    return Array.from(new Set(["ALL", ...found, ...(player?.formats_played || []).map(f => f.toUpperCase())]));
+  }, [summaries, player]);
+  
   const { data: recentMatches, isLoading: matchesLoading } = usePlayerRecentMatches(id, format === "All" ? undefined : format);
 
   const stats = format === "All" 
     ? (totals as unknown as PlayerSummary) 
-    : (summaries?.find((s) => s.format === format) ?? null);
+    : (summaries?.find((s) => s.format.toUpperCase() === format.toUpperCase()) ?? null);
 
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const setRef = useCallback((key: string) => (el: HTMLDivElement | null) => {
@@ -70,7 +77,12 @@ export default function PlayerProfile() {
       <AppHeader />
 
       <div className="container mx-auto px-4 py-6">
-        <PlayerProfileCard player={player} stats={stats} format={format} onFormatChange={setFormat} />
+        <PlayerProfileCard 
+          player={player ? { ...player, formats_played: formatsPlayed } : null} 
+          stats={stats} 
+          format={format} 
+          onFormatChange={setFormat} 
+        />
       </div>
 
       <ProfileStickyTabs activeTab={section} onTabChange={handleTabChange} />
@@ -116,7 +128,7 @@ export default function PlayerProfile() {
 
             {section === "fielding" && (
               <div ref={setRef("fielding")}>
-                <FieldingTab isLoading={dataLoading} />
+                <FieldingTab format={format} stats={stats} isLoading={dataLoading} />
               </div>
             )}
 

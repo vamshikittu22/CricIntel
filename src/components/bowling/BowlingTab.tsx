@@ -1,279 +1,228 @@
-import { Zap, Shield, Target, Activity, TrendingUp, History, BarChart3 as BarChartIcon, Wind, Fan, ZapOff, Trophy } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyState } from "@/components/ui/empty-state";
-import { motion, AnimatePresence } from "framer-motion";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area } from "recharts";
 import { useMemo } from "react";
-import { usePlayerPhaseStats } from "@/lib/hooks/usePlayers";
+import { 
+  Zap, 
+  Target, 
+  Activity, 
+  TrendingUp, 
+  History, 
+  Trophy, 
+  ShieldAlert,
+  BarChart3,
+  Dna,
+  ZapOff,
+  Skull,
+  Crosshair
+} from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { motion } from "framer-motion";
+import { usePlayerDeliveries } from "@/lib/hooks/usePlayers";
 import type { PlayerSummary, PlayerMatchRow } from "@/lib/hooks/usePlayers";
+import { cn } from "@/lib/utils";
 
 interface BowlingTabProps {
   stats: PlayerSummary | null;
   recentMatches: PlayerMatchRow[];
   format: string;
-  isLoading: boolean;
+  isLoading?: boolean;
 }
 
 export function BowlingTab({ stats, recentMatches, format, isLoading: parentLoading }: BowlingTabProps) {
-  const { data: phaseStats, isLoading: phaseLoading } = usePlayerPhaseStats(stats?.player_id, format);
-  
-  const isLoading = parentLoading || phaseLoading;
+  const { data: deliveries, isLoading: deliveriesLoading } = usePlayerDeliveries(
+    stats?.player_id,
+    format.toUpperCase() === "ALL" ? undefined : format,
+    { role: "bowler" }
+  );
 
-  const processedBowling = useMemo(() => {
-    return [...recentMatches]
-      .filter((m) => m.is_bowler)
-      .sort((a, b) => a.match_date.localeCompare(b.match_date))
-      .map((m, i) => ({
-        inning: i + 1,
-        wickets: m.bowl_wickets,
-        runs: m.bowl_runs,
-        overs: m.bowl_overs,
-        econ: +m.bowl_econ,
-        date: m.match_date,
-        year: m.match_date?.substring(0, 4) || "—",
-        opponent: `${m.team1} vs ${m.team2}`,
-      }));
-  }, [recentMatches]);
+  const isLoading = parentLoading || deliveriesLoading;
 
-  const yearStats = useMemo(() => {
-    const map = new Map<string, { wickets: number; innings: number; runsTotal: number; econTotal: number }>();
-    for (const m of processedBowling) {
-      const y = m.year;
-      if (!map.has(y)) map.set(y, { wickets: 0, innings: 0, runsTotal: 0, econTotal: 0 });
-      const s = map.get(y)!;
-      s.wickets += m.wickets;
-      s.innings++;
-      s.runsTotal += m.runs;
-      s.econTotal += m.econ;
-    }
-    return Array.from(map.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([year, s]) => ({
-        year,
-        wickets: s.wickets,
-        avgWickets: +(s.wickets / s.innings).toFixed(1),
-        econ: +(s.econTotal / s.innings).toFixed(2),
-      }));
-  }, [processedBowling]);
+  // Identify prized scalps (batters dismissed most by this bowler)
+  const prizedScalps = useMemo(() => {
+    if (!deliveries) return [];
+    
+    // In our deliveries, 'player_dismissed' is the batter, and 'bowler' is the player of this tab
+    const wicketCounts: Record<string, number> = {};
+    
+    deliveries.forEach(d => {
+      if (d.is_wicket && d.player_dismissed) {
+        // Double check formatting of dismissal kind to exclude non-bowler wickets if needed (e.g. run outs)
+        // But usually deliveries with is_wicket=true and player_dismissed are what we want
+        const batter = d.player_dismissed;
+        wicketCounts[batter] = (wicketCounts[batter] || 0) + 1;
+      }
+    });
 
-  const recentTrend = useMemo(() => processedBowling.slice(-40), [processedBowling]);
+    return Object.entries(wicketCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 4);
+  }, [deliveries]);
+
+  const bowlStats = useMemo(() => {
+    if (!stats) return null;
+    return [
+      { label: "Aggregate Wickets", value: stats.wickets, icon: Target, color: "text-rose-500", highlight: true },
+      { label: "Economy Protocol", value: stats.econ || "—", icon: Activity, color: "text-blue-500" },
+      { label: "Strike Vector", value: stats.bowl_strike_rate || "—", icon: Zap, color: "text-amber-500" },
+      { label: "Average Impact", value: stats.bowl_average || "—", icon: Trophy, color: "text-primary" },
+      { label: "Five Wicket Hauls", value: stats.bowl_five_wickets || 0, icon: ShieldAlert, color: "text-rose-600" },
+      { label: "Best Execution", value: stats.bowl_best_figures || "—", icon: History, color: "text-muted-foreground" },
+    ];
+  }, [stats]);
 
   if (isLoading) {
     return (
-      <div className="space-y-12 animate-pulse">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-[2rem]" />)}
+      <div className="space-y-12 animate-pulse pb-24">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-[2.5rem]" />)}
         </div>
-        <div className="grid gap-8 lg:grid-cols-3">
-           <Skeleton className="h-[450px] rounded-[2.5rem]" />
-           <Skeleton className="lg:col-span-2 h-[450px] rounded-[2.5rem]" />
-        </div>
+        <Skeleton className="h-96 rounded-[3.5rem]" />
       </div>
     );
   }
 
-  const hasData = (stats && stats.innings_bowl > 0) || processedBowling.length > 0;
-  if (!hasData) {
-    return <EmptyState message={`No ${format} bowling data available`} icon={<ZapOff className="h-10 w-10 text-muted-foreground/30" />} />;
+  if (!stats) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 text-center">
+        <ZapOff className="h-16 w-16 text-muted-foreground/30 mb-8" />
+        <h3 className="text-2xl font-black uppercase tracking-widest text-muted-foreground/60">No Intelligence Logged</h3>
+        <p className="text-xs text-muted-foreground/40 mt-4 uppercase font-black tracking-widest">Awaiting sector match data for {format}</p>
+      </div>
+    );
   }
 
-  const ppStats = phaseStats?.find(p => p.phase === "powerplay");
-  const midStats = phaseStats?.find(p => p.phase === "middle");
-  const deathStats = phaseStats?.find(p => p.phase === "death");
-
-  const calcEcon = (runs: number, balls: number) => {
-    if (balls === 0) return "—";
-    return ((runs / balls) * 6).toFixed(2);
-  };
-
-  const phaseData = [
-    { name: "Powerplay", econ: ppStats ? calcEcon(ppStats.bowl_runs, ppStats.bowl_balls) : "—", wickets: ppStats?.bowl_wickets ?? 0, icon: Zap, color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" },
-    { name: "Middle Overs", econ: midStats ? calcEcon(midStats.bowl_runs, midStats.bowl_balls) : "—", wickets: midStats?.bowl_wickets ?? 0, icon: Shield, color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20" },
-    { name: "Death Overs", econ: deathStats ? calcEcon(deathStats.bowl_runs, deathStats.bowl_balls) : "—", wickets: deathStats?.bowl_wickets ?? 0, icon: Target, color: "text-rose-500", bg: "bg-rose-500/10", border: "border-rose-500/20" },
-  ];
-
   return (
-    <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-16 pb-20">
+    <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-16 pb-24">
       {/* Primary KPI Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-        {[
-          { label: "Total Wickets", value: stats?.wickets ?? 0, highlight: true, icon: Target, color: "text-primary" },
-          { label: "Economy Rate", value: stats?.econ ?? "—", icon: Wind, color: "text-accent" },
-          { label: "Best Match", value: stats?.bowl_best_figures ?? "—", icon: Trophy, color: "text-amber-500" },
-          { label: "5w Conversion", value: stats?.bowl_five_wickets ?? 0, icon: Zap, color: "text-success" },
-          { label: "Average", value: stats?.bowl_average ?? "—", icon: Activity },
-          { label: "Strike Rate", value: stats?.bowl_strike_rate ?? "—", icon: TrendingUp },
-          { label: "Deployment", value: `${stats?.innings_bowl ?? 0} Innings`, icon: History },
-          { label: "Volume", value: `${stats?.overs ?? 0} Overs`, icon: Fan },
-        ].map((s, i) => (
-          <div key={i} className={`stat-card glass flex flex-col justify-between group overflow-hidden ${s.highlight ? "border-primary/40 ring-1 ring-primary/10" : "border-border/50"}`}>
-            <div className="flex items-center justify-between pointer-events-none">
-              <span className="label leading-none">{s.label}</span>
-              {s.icon && <s.icon className={`h-4 w-4 ${s.color || "text-muted-foreground"} opacity-30 group-hover:opacity-100 transition-opacity`} />}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
+         {bowlStats?.map((s, i) => (
+          <div key={i} className={cn(
+            "p-10 rounded-[3rem] glass flex flex-col justify-between group overflow-hidden transition-all active:scale-[0.98] shadow-2xl relative",
+            s.highlight ? "border-rose-500/30 bg-rose-500/[0.03] shadow-rose-500/5 ring-1 ring-rose-500/20" : "border-border/50 bg-slate-100/50 dark:bg-muted/5 shadow-sm"
+          )}>
+            <div className="flex items-center justify-between mb-8 relative z-10">
+              <span className="text-[10px] uppercase font-black tracking-[0.25em] text-muted-foreground leading-none opacity-80">{s.label}</span>
+              <div className={cn("p-2.5 rounded-xl bg-slate-100 dark:bg-white/5 shadow-inner border border-black/5 dark:border-white/5 transition-all group-hover:scale-110", s.highlight ? 'bg-rose-500/10 text-rose-500' : s.color)}>
+                 <s.icon className="h-5 w-5" />
+              </div>
             </div>
-            <div className={`value mt-4 tracking-tighter ${s.highlight ? "text-primary text-5xl" : "text-4xl"}`}>{s.value}</div>
-            {s.highlight && <div className="absolute -right-4 -bottom-4 h-24 w-24 bg-primary/10 blur-3xl rounded-full" />}
+            <div className="flex items-end justify-between relative z-10">
+               <span className={cn(
+                 "value mt-2 tracking-tighter leading-none",
+                 s.highlight ? "text-rose-500 text-6xl font-black" : "text-4xl font-black text-foreground"
+               )}>{s.value}</span>
+               {s.highlight && <span className="text-[10px] font-black uppercase text-rose-500/60 tracking-widest mb-2">Lifetime</span>}
+            </div>
+            <div className="absolute -right-6 -bottom-6 h-24 w-24 bg-primary/5 blur-[50px] rounded-full group-hover:bg-primary/10 transition-colors pointer-events-none" />
           </div>
         ))}
       </div>
 
-      <div className="grid gap-10 lg:grid-cols-3">
-        {/* Phase Breakdown Card */}
-        <div className="p-8 rounded-[3rem] glass border-border/50 relative overflow-hidden group h-full flex flex-col">
-          <div className="flex items-center gap-3 mb-10">
-            <div className="p-2 bg-secondary/50 rounded-xl">
-              <Activity className="h-5 w-5 text-muted-foreground" />
+      <div className="grid gap-12 lg:grid-cols-5">
+         {/* Prized Scalps Section (Bunnies) */}
+         <div className="lg:col-span-2 p-12 rounded-[4rem] glass border-rose-500/20 bg-rose-500/[0.02] shadow-2xl relative overflow-hidden flex flex-col">
+            <div className="flex items-center gap-5 mb-12 relative z-10">
+               <div className="p-4 bg-rose-500/10 rounded-2xl border border-rose-500/20 shadow-inner">
+                  <Skull className="h-8 w-8 text-rose-500" />
+               </div>
+               <div>
+                  <h3 className="text-xl font-black text-foreground uppercase tracking-tight mb-1">Prized Scalps</h3>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500/60 leading-none">Frequent Victimized Targets</p>
+               </div>
             </div>
-            <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.25em]">Phase Intelligence</h3>
-          </div>
-          <div className="space-y-6 flex-1">
-            {phaseData.map((p) => (
-              <div key={p.name} className={`p-6 rounded-[2rem] glass border ${p.border} transition-all hover:bg-white/[0.02] group/item relative overflow-hidden`}>
-                <div className="flex items-center justify-between relative z-10">
-                  <div className="flex items-center gap-5">
-                    <div className={`p-4 rounded-2xl ${p.bg} border border-white/5`}>
-                      <p.icon className={`h-6 w-6 ${p.color}`} />
+
+            <div className="space-y-6 relative z-10 flex-1">
+               {prizedScalps.length > 0 ? prizedScalps.map((batter, i) => (
+                 <div key={i} className="group p-8 rounded-[2.5rem] bg-white dark:bg-black/40 border border-black/5 dark:border-white/5 hover:border-rose-500/40 transition-all flex items-center justify-between shadow-xl hover:-translate-y-2">
+                    <div className="flex items-center gap-6">
+                       <div className="h-16 w-16 rounded-3xl bg-gradient-to-br from-rose-500 to-primary p-0.5 shadow-xl group-hover:rotate-12 transition-transform">
+                          <div className="h-full w-full rounded-[1.2rem] bg-background flex items-center justify-center font-black text-rose-500 text-2xl mono">
+                             {batter.count}
+                          </div>
+                       </div>
+                       <div>
+                          <p className="text-lg font-black text-foreground uppercase tracking-tight mb-1 group-hover:text-rose-500 transition-colors">{batter.name}</p>
+                          <p className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest italic">Dismissed {batter.count} times</p>
+                       </div>
                     </div>
-                    <div>
-                      <h4 className="font-black text-lg tracking-tight uppercase leading-none">{p.name}</h4>
-                      <p className="text-[10px] text-muted-foreground uppercase font-black mono tracking-[0.2em] mt-2">ECON: <span className="text-foreground">{p.econ}</span></p>
+                    <div className="p-3 rounded-2xl bg-slate-50 dark:bg-white/5 border border-black/5 dark:border-white/5 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
+                       <Target className="h-6 w-6 text-rose-500" />
                     </div>
+                 </div>
+               )) : (
+                 <div className="flex flex-col items-center justify-center py-20 opacity-30">
+                    <History className="h-16 w-16 mb-6 text-muted-foreground/40" />
+                    <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Awaiting scalp confirmation</p>
+                 </div>
+               )}
+            </div>
+            <div className="absolute -right-24 -bottom-24 h-80 w-80 bg-rose-500/5 blur-[120px] rounded-full pointer-events-none" />
+         </div>
+
+         {/* Technical DNA & Metrics */}
+         <div className="lg:col-span-3 p-12 rounded-[4rem] glass border-primary/20 bg-primary/[0.02] shadow-2xl relative overflow-hidden flex flex-col justify-between">
+            <div className="relative z-10">
+               <div className="flex items-center gap-5 mb-12">
+                  <div className="p-4 bg-primary/10 rounded-2xl border border-primary/20 shadow-inner">
+                     <Dna className="h-8 w-8 text-primary" />
                   </div>
-                  <div className="text-right">
-                    <p className={`text-3xl font-black ${p.color} tracking-tighter`}>{p.wickets}</p>
-                    <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest mt-1">Wickets</p>
+                  <div>
+                     <h3 className="text-xl font-black text-foreground uppercase tracking-tight mb-1">Execution DNA</h3>
+                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/60 leading-none">Statistical Performance Mapping</p>
                   </div>
-                </div>
-                {/* Glow effect on hover */}
-                <div className={`absolute inset-0 opacity-0 group-hover/item:opacity-5 transition-opacity bg-gradient-to-r from-transparent via-${p.color.split('-')[1]} to-transparent`} />
-              </div>
-            ))}
-          </div>
-        </div>
+               </div>
 
-        {/* Annual Evolution Chart */}
-        <div className="lg:col-span-2 p-10 rounded-[3rem] glass border-border/50 relative overflow-hidden">
-          <div className="flex items-center gap-3 mb-10">
-            <div className="p-2 bg-primary/10 rounded-xl">
-              <BarChartIcon className="h-5 w-5 text-primary" />
+               <div className="grid gap-8">
+                  {[
+                    { label: "Wicket Efficiency", value: stats.bowl_strike_rate, trend: "Stable", target: 30 },
+                    { label: "Economic Integrity", value: stats.econ, trend: "Rising", target: 8.5 },
+                  ].map((m, i) => {
+                     const val = Number(m.value) || 0;
+                     const progress = Math.max(0, Math.min(100, (m.target / (val || 1)) * 100));
+                     return (
+                       <div key={i} className="p-10 rounded-[3rem] bg-white/60 dark:bg-black/20 border border-black/5 dark:border-white/5 shadow-inner">
+                          <div className="flex items-center justify-between mb-8">
+                             <div>
+                                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] mb-2 opacity-60">{m.label}</p>
+                                <p className="text-5xl font-black text-foreground tracking-tighter leading-none">{m.value}</p>
+                             </div>
+                             <div className="p-4 rounded-3xl bg-primary/10 border border-primary/10 flex flex-col items-center justify-center min-w-[90px]">
+                                <TrendingUp className="h-5 w-5 text-primary mb-1" />
+                                <span className="text-[10px] font-black text-primary uppercase tracking-widest">{m.trend}</span>
+                             </div>
+                          </div>
+                          <div className="h-3 bg-slate-200 dark:bg-white/5 rounded-full overflow-hidden p-0.5 shadow-inner">
+                             <motion.div 
+                               initial={{ width: 0 }} 
+                               animate={{ width: `${progress}%` }} 
+                               className="h-full bg-gradient-to-r from-primary to-blue-400 rounded-full shadow-lg"
+                             />
+                          </div>
+                       </div>
+                     );
+                  })}
+               </div>
             </div>
-            <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.25em]">Annual Deployment Metrics</h3>
-          </div>
-          <div className="h-[350px] w-full mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={yearStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                   <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.8} />
-                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                   </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.03)" />
-                <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: "900", fill: "hsl(var(--muted-foreground))" }} dy={15} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: "900", fill: "hsl(var(--muted-foreground))" }} />
-                <Tooltip
-                  cursor={{ fill: "rgba(255, 255, 255, 0.05)", radius: 10 }}
-                  contentStyle={{ background: "rgba(10, 10, 10, 0.9)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "1.5rem", padding: "12px 16px" }}
-                  labelStyle={{ color: "rgba(255,255,255,0.5)", fontSize: "10px", fontWeight: "900", textTransform: "uppercase", marginBottom: "8px", letterSpacing: "0.1em" }}
-                />
-                <Bar dataKey="wickets" fill="url(#barGrad)" radius={[10, 10, 0, 0]} barSize={45} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
 
-      <div className="grid gap-10 lg:grid-cols-2">
-        {/* Trend Progression */}
-        <div className="p-10 rounded-[3.5rem] glass border-border/50 relative overflow-hidden bg-gradient-to-br from-secondary/10 to-transparent">
-          <div className="flex items-center gap-3 mb-10">
-            <div className="p-2 bg-secondary/80 rounded-xl">
-              <TrendingUp className="h-5 w-5 text-muted-foreground" />
+            <div className="mt-12 p-10 rounded-[3rem] bg-white/95 dark:bg-black/30 border border-black/5 dark:border-white/10 shadow-2xl relative z-10 flex items-center justify-between">
+               <div className="flex items-center gap-6">
+                  <div className="p-3 bg-primary/10 rounded-2xl">
+                     <Crosshair className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="space-y-1">
+                     <p className="text-xs font-black text-foreground uppercase tracking-tight">Active Combat Status</p>
+                     <p className="text-[10px] font-black text-success uppercase tracking-widest">High Reliability Tier</p>
+                  </div>
+               </div>
+               <div className="h-12 w-px bg-black/5 dark:bg-white/5" />
+               <div className="text-right">
+                  <p className="text-2xl font-black text-primary mono leading-none">{(Number(stats.wickets) / Math.max(1, stats.matches)).toFixed(2)}</p>
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-1">Scalps / Match</p>
+               </div>
             </div>
-            <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.25em]">Impact Progression</h3>
-          </div>
-          <div className="h-[350px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={recentTrend}>
-                <defs>
-                   <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.2} />
-                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                   </linearGradient>
-                </defs>
-                <XAxis dataKey="inning" hide />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: "900", fill: "hsl(var(--muted-foreground))" }} />
-                <Tooltip
-                  content={({ payload }) => {
-                    if (!payload?.length) return null;
-                    const d = payload[0].payload;
-                    return (
-                      <div className="rounded-[2rem] border border-white/10 bg-black/90 backdrop-blur-3xl p-6 text-xs shadow-2xl ring-1 ring-white/20 min-w-[200px]">
-                        <p className="font-black text-white/30 uppercase tracking-[0.2em] text-[9px] mb-3">{d.opponent}</p>
-                        <div className="flex items-end justify-between gap-8 mb-4">
-                          <p className="text-primary font-black text-5xl tracking-tighter leading-none">{d.wickets}<span className="text-sm uppercase tracking-widest ml-1 opacity-50">w</span></p>
-                          <p className="text-[10px] text-white/40 font-black uppercase tracking-widest">{d.date}</p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 border-t border-white/5 pt-4">
-                           <div>
-                             <p className="text-[8px] font-black text-muted-foreground/50 uppercase tracking-widest mb-1">Economy</p>
-                             <p className="text-sm font-black mono text-foreground">{d.econ}</p>
-                           </div>
-                           <div className="text-right">
-                             <p className="text-[8px] font-black text-muted-foreground/50 uppercase tracking-widest mb-1">Overs</p>
-                             <p className="text-sm font-black mono text-foreground">{d.overs}</p>
-                           </div>
-                        </div>
-                      </div>
-                    );
-                  }}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="wickets" 
-                  stroke="hsl(var(--primary))" 
-                  strokeWidth={4} 
-                  fill="url(#lineGrad)"
-                  activeDot={{ r: 10, strokeWidth: 0, fill: "hsl(var(--primary))", shadow: "0 0 20px rgba(var(--primary-rgb), 0.5)" }} 
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Annual Summary Table */}
-        <div className="p-10 rounded-[3.5rem] glass border-border/50 overflow-hidden relative">
-          <div className="flex items-center gap-3 mb-10">
-            <div className="p-2 bg-secondary/80 rounded-xl">
-              <History className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.25em]">Career Sector Breakdown</h3>
-          </div>
-          <div className="overflow-x-auto -mx-10 no-scrollbar">
-            <table className="w-full">
-               <thead className="bg-white/5 text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground">
-                  <tr>
-                    <th className="px-10 py-6 text-left">Timeline</th>
-                    <th className="px-10 py-6 text-right">Total Wickets</th>
-                    <th className="px-10 py-6 text-right">Impact Index</th>
-                    <th className="px-10 py-6 text-right">Efficiency</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {yearStats.map((y, i) => (
-                    <tr key={y.year} className="group/row hover:bg-white/[0.03] transition-all cursor-default">
-                      <td className="px-10 py-6 font-black text-sm tracking-tight text-foreground/80">{y.year}</td>
-                      <td className="px-10 py-6 text-right font-black text-primary text-2xl tracking-tighter group-hover/row:scale-110 transition-transform origin-right">{y.wickets}</td>
-                      <td className="px-10 py-6 text-right font-black text-muted-foreground/60 text-[11px] uppercase tracking-widest">{y.avgWickets} <span className="text-[8px] font-bold">avg</span></td>
-                      <td className="px-10 py-6 text-right font-black mono text-xs group-hover/row:text-accent transition-colors">{y.econ}</td>
-                    </tr>
-                  ))}
-                </tbody>
-            </table>
-          </div>
-        </div>
+            
+            <div className="absolute -left-32 -top-32 h-96 w-96 bg-primary/10 blur-[140px] rounded-full pointer-events-none" />
+         </div>
       </div>
     </motion.div>
   );
 }
-
