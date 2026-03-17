@@ -1,5 +1,9 @@
 /**
- * Cricsheet JSON → Supabase ETL script
+ * scripts/import-cricsheet.ts
+ * 
+ * Enhanced Cricsheet JSON → Supabase ETL script
+ * Now supports breakdown of dismissals, improved bowler classification,
+ * and fixes field name discrepancies.
  */
 
 import "dotenv/config";
@@ -27,26 +31,27 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 function getBowlerType(name: string): "pace" | "spin" {
   const nameLower = name.toLowerCase();
   
-  // High-confidence classification for top-tier international/franchise spinners
   const knownSpinners = [
     "rashid khan", "ashwin", "chahal", "shamsi", "maharaj", "zampa", "kuldeep", "jadeja", 
     "narine", "shakib", "mujeeb", "santner", "ish sodhi", "hasaranga", "theekshana", 
     "bishnoi", "axar patel", "murugan ashwin", "varun chakravarthy", "adil rashid",
     "moeen ali", "livingstone", "shadab khan", "mohammad nawaz", "rehan ahmed",
     "todd murphy", "nathan lyon", "jack leach", "tom hartley", "will jacks",
-    "mahedi hasan", "mehidy hasan", "taijul islam", "dunith wellalage",
-    "allan donald" // Wait, Allan Donald is pace, just testing my own logic. Nathan Lyon is definitely spin.
+    "mahedi hasan", "mehidy hasan", "taijul islam", "dunith wellalage", "tanveer sangha",
+    "adam zampa", "tabraiz shamsi", "keshav maharaj", "wanindu hasaranga", "maheesh theekshana",
+    "ravi bishnoi", "axar patel", "washington sundar", "mohammad nabi", "mujeeb ur rahman",
+    "noor ahmad", "qais ahmad", "ish sodhi", "mitchell santner", "glenn maxwell",
+    "mark watt", "ayan afzal khan", "sikandar raza", "roston chase", "gudakesh motie",
+    "dananjaya", "akila dananjaya", "praveen jayamawickrama", "lakshan sandakan"
   ];
   if (knownSpinners.some(s => nameLower.includes(s))) return "spin";
 
-  // Keyword matching for broader coverage of domestic and newer players
   const spinKeywords = [
     "spin", "slow", "offbreak", "legbreak", "off-break", "leg-break", "break", 
-    "orthodox", "unorthodox", "arm-ball", "tweaker", "googly", "carrom", "doosra"
+    "orthodox", "unorthodox", "arm-ball", "tweaker", "googly", "carrom", "doosra", "chinaman"
   ];
   if (spinKeywords.some(k => nameLower.includes(k))) return "spin";
   
-  // Default to pace (seam, swing, fast, medium-fast, etc.)
   return "pace";
 }
 
@@ -55,10 +60,14 @@ function getPhase(format: string, over: number): "powerplay" | "middle" | "death
     if (over < 6) return "powerplay";
     if (over < 15) return "middle";
     return "death";
-  } else {
+  } else if (format === "ODI") {
     if (over < 10) return "powerplay";
     if (over < 40) return "middle";
     return "death";
+  } else {
+    // Tests/others
+    if (over < 10) return "new_ball";
+    return "middle";
   }
 }
 
@@ -69,31 +78,36 @@ function readJsonFiles(dir: string): string[] {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       results.push(...readJsonFiles(full));
-    } else if (entry.name.endsWith(".json")) {
+    } else if (entry.name.endsWith(".json") && entry.name !== "package.json") {
       results.push(full);
     }
   }
   return results;
 }
 
-async function upsertBatch(table: string, rows: any[], chunkSize = 100) {
+async function upsertBatch(table: string, rows: any[], chunkSize = 1000) {
   if (rows.length === 0) return;
   const onConflict = 
     table === "players" ? "id" : 
+    table === "matches" ? "id" :
+    table === "match_player_stats" ? "match_id,player_id,inning" :
     table === "player_stats_summary" ? "player_id,format" :
     table === "player_phase_stats" ? "player_id,format,phase" :
-    table === "player_vs_bowling_type" ? "player_id,format,bowler_type" :
+    table === "player_vs_bowling_type" ? "player_id,format,bowling_type" :
+    table === "deliveries" ? "match_id,innings,over_number,ball_number" :
     undefined;
 
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize);
     const { error } = await supabase.from(table).upsert(chunk, { onConflict });
-    if (error) console.error(`  Error upserting ${table} chunk ${i}:`, error.message);
+    if (error) {
+       console.error(`  Error upserting ${table} chunk starting at ${i}:`, error.message);
+    }
   }
 }
 
 interface BatAgg { runs: number; balls: number; fours: number; sixes: number; dismissalKind: string | null; notOut: boolean; }
-interface BowlAgg { ballsBowled: number; runsConceded: number; wickets: number; overSet: Set<number>; maidenOvers: Map<number, number>; }
+interface BowlAgg { ballsBowled: number; runsConceded: number; wickets: number; overSet: Set<number>; maidenOvers: Set<number>; currentOverRuns: Map<number, number>; }
 interface PhaseAgg { bat_runs: number; bat_balls: number; bat_fours: number; bat_sixes: number; bat_dismissals: number; bowl_balls: number; bowl_runs: number; bowl_wickets: number; catches: number; run_outs: number; }
 interface VsTypeAgg { bat_runs: number; bat_balls: number; bat_dismissals: number; }
 interface FielderAgg { catches: number; stumpings: number; run_outs: number; }
@@ -108,7 +122,6 @@ function processMatch(match: CricsheetMatch, matchId: string) {
   const playerRows: any[] = [];
   const playerTeam = new Map<string, string>();
   
-  // Ensure all players in registry are included to avoid FK issues
   for (const [name, pid] of Object.entries(nameToId)) {
     playerRows.push({ 
       id: pid, 
@@ -137,14 +150,11 @@ function processMatch(match: CricsheetMatch, matchId: string) {
   match.innings.forEach((innings, inningIdx) => {
     const inningNum = inningIdx + 1;
     const battingTeam = innings.team;
-    const bowlingTeam = info.teams.find(t => t !== battingTeam) || "";
+    const bowlingTeam = info.teams.find(t => t !== battingTeam) || "Opposition";
 
     innings.overs.forEach(over => {
       const overNum = over.over + 1;
-      // Infer phase: over 1-6 = powerplay, 7-15 = middle, 16+ = death
-      let phase = "middle";
-      if (overNum <= 6) phase = "powerplay";
-      else if (overNum >= 16) phase = "death";
+      const phase = getPhase(format, over.over);
 
       over.deliveries.forEach((del, deliveryIdx) => {
         const batterId = nameToId[del.batter];
@@ -162,7 +172,7 @@ function processMatch(match: CricsheetMatch, matchId: string) {
         const vsTypeKey = `${batterId}_${format}_${bowlerType}`;
 
         if (!batting.has(batKey)) batting.set(batKey, { runs: 0, balls: 0, fours: 0, sixes: 0, dismissalKind: null, notOut: true });
-        if (!bowling.has(bowlKey)) bowling.set(bowlKey, { ballsBowled: 0, runsConceded: 0, wickets: 0, overSet: new Set(), maidenOvers: new Map() });
+        if (!bowling.has(bowlKey)) bowling.set(bowlKey, { ballsBowled: 0, runsConceded: 0, wickets: 0, overSet: new Set(), maidenOvers: new Set(), currentOverRuns: new Map() });
         if (!phaseStats.has(phaseKey)) phaseStats.set(phaseKey, { bat_runs: 0, bat_balls: 0, bat_fours: 0, bat_sixes: 0, bat_dismissals: 0, bowl_balls: 0, bowl_runs: 0, bowl_wickets: 0, catches: 0, run_outs: 0 });
         if (!phaseStats.has(bowlPhaseKey)) phaseStats.set(bowlPhaseKey, { bat_runs: 0, bat_balls: 0, bat_fours: 0, bat_sixes: 0, bat_dismissals: 0, bowl_balls: 0, bowl_runs: 0, bowl_wickets: 0, catches: 0, run_outs: 0 });
         if (!vsTypeStats.has(vsTypeKey)) vsTypeStats.set(vsTypeKey, { bat_runs: 0, bat_balls: 0, bat_dismissals: 0 });
@@ -176,33 +186,42 @@ function processMatch(match: CricsheetMatch, matchId: string) {
         bat.runs += del.runs.batter;
         if (!isWide) {
           bat.balls++;
-          pStat.bat_runs += del.runs.batter; pStat.bat_balls++;
-          vStat.bat_runs += del.runs.batter; vStat.bat_balls++;
+          pStat.bat_runs += del.runs.batter; 
+          pStat.bat_balls++;
+          vStat.bat_runs += del.runs.batter; 
+          vStat.bat_balls++;
           if (del.runs.batter === 4) { bat.fours++; pStat.bat_fours++; }
           if (del.runs.batter === 6) { bat.sixes++; pStat.bat_sixes++; }
         }
 
         bowl.runsConceded += del.runs.total;
         bpStat.bowl_runs += del.runs.total;
-        if (!isWide && !isNoBall) { bowl.ballsBowled++; bpStat.bowl_balls++; }
+        if (!isWide && !isNoBall) { 
+          bowl.ballsBowled++; 
+          bpStat.bowl_balls++; 
+        }
+        
+        const currentOverValue = bowl.currentOverRuns.get(overNum) || 0;
+        bowl.currentOverRuns.set(overNum, currentOverValue + del.runs.total);
 
         const wicket = del.wickets?.[0];
         if (wicket) {
           const outId = nameToId[wicket.player_out];
           if (outId) {
             const outKey = `${outId}_${inningNum}`;
-            if (batting.has(outKey)) {
-              batting.get(outKey)!.dismissalKind = wicket.kind;
-              batting.get(outKey)!.notOut = false;
+            const outBat = batting.get(outKey);
+            if (outBat) {
+              outBat.dismissalKind = wicket.kind;
+              outBat.notOut = false;
               const outPhaseKey = `${outId}_${format}_${phase}`;
               if (phaseStats.has(outPhaseKey)) phaseStats.get(outPhaseKey)!.bat_dismissals++;
-              vStat.bat_dismissals++;
+              if (outId === batterId) vStat.bat_dismissals++;
             }
           }
           if (wicket.kind !== "run out" && wicket.kind !== "retired" && wicket.kind !== "absent hurt") {
-            bowl.wickets++; bpStat.bowl_wickets++;
+            bowl.wickets++; 
+            bpStat.bowl_wickets++;
           }
-          // Fielding stats
           if (wicket.fielders) {
             const fielders = typeof wicket.fielders === "string" ? [{ name: wicket.fielders }] : wicket.fielders;
             fielders.forEach(f => {
@@ -223,7 +242,6 @@ function processMatch(match: CricsheetMatch, matchId: string) {
           }
         }
 
-        // Add to deliveryRows
         deliveryRows.push({
           match_id: matchId,
           innings: inningNum,
@@ -240,11 +258,14 @@ function processMatch(match: CricsheetMatch, matchId: string) {
           player_dismissed: wicket?.player_out || null,
           dismissal_kind: wicket?.kind || null,
           fielder: wicket?.fielders ? (typeof wicket.fielders === 'string' ? wicket.fielders : wicket.fielders[0]?.name) : null,
-          phase,
-          wagon_x: null, // Estimate from fielder is null as no coordinates in JSON
-          wagon_y: null
+          phase
         });
       });
+    });
+    
+    bowling.forEach(bowl => {
+       bowl.currentOverRuns.forEach((runs, over) => { if (runs === 0) bowl.maidenOvers.add(over); });
+       bowl.currentOverRuns.clear();
     });
   });
 
@@ -261,71 +282,80 @@ function processMatch(match: CricsheetMatch, matchId: string) {
       bat_dismissal_kind: bat?.dismissalKind ?? null, bat_not_out: bat?.notOut ?? true,
       bowl_overs: bowl ? +(bowl.ballsBowled / 6).toFixed(1) : 0,
       bowl_runs: bowl?.runsConceded ?? 0, bowl_wickets: bowl?.wickets ?? 0,
-      bowl_econ: bowl ? +(bowl.runsConceded / (bowl.ballsBowled / 6)).toFixed(2) : 0,
+      bowl_maidens: bowl?.maidenOvers.size ?? 0,
+      bowl_econ: bowl && bowl.ballsBowled > 0 ? +(bowl.runsConceded / (bowl.ballsBowled / 6)).toFixed(2) : 0,
     };
   });
 
   return { 
     matchRow: { 
-      id: matchId, 
-      format, 
-      match_date: info.dates[0], 
-      venue: info.venue, 
-      team1: info.teams[0], 
-      team2: info.teams[1], 
-      result: info.outcome?.result ?? null, 
-      gender: info.gender || "male" 
+      id: matchId, format, match_date: info.dates[0], venue: info.venue || "Unknown Venue", 
+      team1: info.teams[0], team2: info.teams[1], result: info.outcome?.result ?? null, 
+      winner: info.outcome?.winner ?? null, winner_margin_runs: info.outcome?.by?.runs ?? null,
+      winner_margin_wickets: info.outcome?.by?.wickets ?? null, gender: info.gender || "male",
+      season: info.season?.toString() || null, event_name: info.event?.name || null,
+      match_number: info.event?.match_number || null, balls_per_over: info.balls_per_over || 6,
+      overs: info.overs
     }, 
-    playerRows, 
-    statsRows, 
-    deliveryRows,
-    phaseStats, 
-    vsTypeStats, 
-    fielding, 
-    format 
+    playerRows, statsRows, deliveryRows, phaseStats, vsTypeStats, fielding, format 
   };
 }
 
 async function main() {
   const dir = process.argv[2] || "./data";
+  console.log(`Loading Cricsheet data from ${dir}...`);
   const files = readJsonFiles(dir);
   if (files.length === 0) return;
 
   const allStats: any[] = [];
   const globalPhase = new Map<string, PhaseAgg>();
   const globalVsType = new Map<string, VsTypeAgg>();
-  const globalFielding = new Map<string, FielderAgg>(); // pid_format
-  const playerMeta = new Map<string, any>();
+  const globalFielding = new Map<string, FielderAgg>(); 
+  const playerDismBreakdown = new Map<string, Record<string, number>>(); 
 
   const allDeliveries: any[] = [];
+  const batchedMatches: any[] = [];
+  const batchedPlayers = new Map<string, any>();
+  const batchedStats: any[] = [];
+  
+  const CHUNK_SIZE = 20;
+  for (let i = 0; i < files.length; i += CHUNK_SIZE) {
+    const chunk = files.slice(i, i + CHUNK_SIZE);
+    if ((i / CHUNK_SIZE) % 5 === 0) {
+      console.log(`Processing files ${i} to ${Math.min(i + CHUNK_SIZE * 5, files.length)} / ${files.length}...`);
+    }
 
-  let count = 0;
-  let totalDeliveriesProcessed = 0;
-
-  for (const file of files) {
-    try {
-      count++;
-      if (count % 50 === 0) console.log(`Processing file ${count}/${files.length}...`);
-      const match: CricsheetMatch = JSON.parse(fs.readFileSync(file, "utf-8"));
-      const { matchRow, playerRows, statsRows, deliveryRows, phaseStats, vsTypeStats, fielding, format } = processMatch(match, path.basename(file, ".json"));
-
-      await upsertBatch("players", playerRows);
-      await supabase.from("matches").upsert([matchRow]);
-      await upsertBatch("match_player_stats", statsRows);
-      
-      // Batch deliveries upsert (1000 rows)
-      allDeliveries.push(...deliveryRows);
-      if (allDeliveries.length >= 1000) {
-        await upsertBatch("deliveries", allDeliveries.splice(0, 1000), 1000);
-        totalDeliveriesProcessed += 1000;
-        if (totalDeliveriesProcessed % 10000 === 0) {
-          console.log(`  Progress: ${totalDeliveriesProcessed} deliveries imported...`);
-        }
+    const results = chunk.map(file => {
+      try {
+        const match: CricsheetMatch = JSON.parse(fs.readFileSync(file, "utf-8"));
+        return { 
+          file, 
+          data: processMatch(match, path.basename(file, ".json"))
+        };
+      } catch (e: any) {
+        console.error(`Error reading ${file}:`, e.message);
+        return null;
       }
+    }).filter(r => r !== null);
 
-      statsRows.forEach(s => allStats.push({ ...s, format }));
+    for (const { data } of results) {
+      const { matchRow, playerRows, statsRows, deliveryRows, phaseStats, vsTypeStats, fielding, format } = data;
+
+      playerRows.forEach(p => batchedPlayers.set(p.id, p));
+      batchedMatches.push(matchRow);
+      batchedStats.push(...statsRows);
+      allDeliveries.push(...deliveryRows);
+
+      statsRows.forEach(s => {
+         allStats.push({ ...s, format });
+         if (s.bat_dismissal_kind) {
+            const key = `${s.player_id}_${format}`;
+            if (!playerDismBreakdown.has(key)) playerDismBreakdown.set(key, {});
+            const b = playerDismBreakdown.get(key)!;
+            b[s.bat_dismissal_kind] = (b[s.bat_dismissal_kind] || 0) + 1;
+         }
+      });
       
-      // Global merging
       phaseStats.forEach((v, k) => {
         if (!globalPhase.has(k)) globalPhase.set(k, { bat_runs: 0, bat_balls: 0, bat_fours: 0, bat_sixes: 0, bat_dismissals: 0, bowl_balls: 0, bowl_runs: 0, bowl_wickets: 0, catches: 0, run_outs: 0 });
         const g = globalPhase.get(k)!;
@@ -335,9 +365,7 @@ async function main() {
       vsTypeStats.forEach((v, k) => {
         if (!globalVsType.has(k)) globalVsType.set(k, { bat_runs: 0, bat_balls: 0, bat_dismissals: 0 });
         const g = globalVsType.get(k)!;
-        g.bat_runs += v.bat_runs;
-        g.bat_balls += v.bat_balls;
-        g.bat_dismissals += v.bat_dismissals;
+        g.bat_runs += v.bat_runs; g.bat_balls += v.bat_balls; g.bat_dismissals += v.bat_dismissals;
       });
 
       fielding.forEach((v, pid) => {
@@ -346,18 +374,17 @@ async function main() {
         const g = globalFielding.get(key)!;
         g.catches += v.catches; g.stumpings += v.stumpings; g.run_outs += v.run_outs;
       });
+    }
 
-    } catch (e: any) { console.error(`Error ${file}:`, e.message); }
+    // Flush batches sequentially for reliability
+    await upsertBatch("players", Array.from(batchedPlayers.values()), 1000);
+    await upsertBatch("matches", batchedMatches.splice(0, batchedMatches.length), 100);
+    await upsertBatch("match_player_stats", batchedStats.splice(0, batchedStats.length), 1000);
+    await upsertBatch("deliveries", allDeliveries.splice(0, allDeliveries.length), 1000);
+    
+    batchedPlayers.clear();
   }
 
-  // Final delivery batch
-  if (allDeliveries.length > 0) {
-    await upsertBatch("deliveries", allDeliveries, 1000);
-    totalDeliveriesProcessed += allDeliveries.length;
-    console.log(`  Final Progress: ${totalDeliveriesProcessed} deliveries imported total.`);
-  }
-
-  // Career Summaries with Fielding
   const career = new Map<string, any>();
   allStats.forEach(s => {
     const key = `${s.player_id}_${s.format}`;
@@ -379,6 +406,7 @@ async function main() {
   const summaryRows = Array.from(career.entries()).map(([key, c]) => {
     const [pid, format] = key.split("_");
     const fld = globalFielding.get(key) || { catches: 0, stumpings: 0, run_outs: 0 };
+    const dism = playerDismBreakdown.get(key) || {};
     return {
       player_id: pid, format, matches: c.matches.size, innings_bat: c.innings_bat, runs: c.runs, balls: c.balls, not_outs: c.not_outs,
       hundreds: c.hundreds, fifties: c.fifties, best_score: c.best_score,
@@ -386,22 +414,23 @@ async function main() {
       average: c.innings_bat > c.not_outs ? +(c.runs / (c.innings_bat - c.not_outs)).toFixed(2) : null,
       strike_rate: c.balls > 0 ? +(c.runs * 100 / c.balls).toFixed(2) : null,
       econ: c.bowl_overs > 0 ? +(c.bowl_runs / c.bowl_overs).toFixed(2) : null,
+      dismissals_breakdown: dism,
       ...fld
     };
   });
-  await upsertBatch("player_stats_summary", summaryRows);
+  await upsertBatch("player_stats_summary", summaryRows, 100);
 
   const pRows = Array.from(globalPhase.entries()).map(([key, val]) => {
     const [pid, format, phase] = key.split("_");
     return { player_id: pid, format, phase, ...val };
   });
-  await upsertBatch("player_phase_stats", pRows);
+  await upsertBatch("player_phase_stats", pRows, 100);
 
   const vsRows = Array.from(globalVsType.entries()).map(([key, val]) => {
     const [pid, format, bType] = key.split("_");
-    return { player_id: pid, format, bowler_type: bType, ...val };
+    return { player_id: pid, format, bowling_type: bType, ...val };
   });
-  await upsertBatch("player_vs_bowling_type", vsRows);
+  await upsertBatch("player_vs_bowling_type", vsRows, 100);
 
   console.log("ETL Complete.");
 }
