@@ -83,8 +83,8 @@ export default function MatchCharts({ deliveries, match }: MatchChartsProps) {
                 <TrendingUp className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <CardTitle className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground mb-1">Combat Trajectory</CardTitle>
-                <h3 className="text-2xl font-black italic tracking-tighter uppercase leading-none">The Worm Chart</h3>
+                <CardTitle className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground mb-1">Innings Comparison</CardTitle>
+                <h3 className="text-2xl font-black italic tracking-tighter uppercase leading-none">Run Progression</h3>
               </div>
             </div>
             <div className="flex gap-4">

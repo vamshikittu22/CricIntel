@@ -77,7 +77,7 @@ export default function MatchPhaseAnalysis({ deliveries }: MatchPhaseAnalysisPro
         <Card className="glass rounded-[3rem] border-border/50 bg-card/40 overflow-hidden shadow-2xl flex flex-col items-center justify-center py-10">
             <div className="text-center mb-10">
                 <Target className="h-6 w-6 text-primary mx-auto mb-3" />
-                <h3 className="text-xs font-black uppercase tracking-[0.4em] text-muted-foreground">Tactical Heatmap</h3>
+                <h3 className="text-xs font-black uppercase tracking-[0.4em] text-muted-foreground">Innings Phase Analysis</h3>
             </div>
             <div className="h-[400px] w-full max-w-md">
                 <ResponsiveContainer width="100%" height="100%">
@@ -85,7 +85,7 @@ export default function MatchPhaseAnalysis({ deliveries }: MatchPhaseAnalysisPro
                         <PolarGrid stroke="hsl(var(--muted-foreground)/0.2)" />
                         <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fontWeight: "900", fill: "hsl(var(--muted-foreground)/0.6)" }} />
                         <Radar 
-                            name="Intensity" 
+                            name="Run Rate" 
                             dataKey="RR" 
                             stroke="#256af4" 
                             fill="#256af4" 
@@ -111,8 +111,8 @@ export default function MatchPhaseAnalysis({ deliveries }: MatchPhaseAnalysisPro
                             <Activity className={`h-6 w-6 ${idx === 0 ? 'text-primary' : idx === 1 ? 'text-emerald-500' : 'text-red-500'}`} />
                         </div>
                         <div>
-                            <h4 className="text-xl font-black italic uppercase tracking-tighter leading-none">{phase.name}</h4>
-                            <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest mt-2 block opacity-40">Tactical Phase Segment</span>
+                            <h4 className="text-xl font-black italic uppercase tracking-tighter leading-none">{phase.name} Phase</h4>
+                            <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest mt-2 block opacity-40">Match Segment Performance</span>
                         </div>
                     </div>
 

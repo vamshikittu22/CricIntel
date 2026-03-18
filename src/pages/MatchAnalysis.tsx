@@ -39,7 +39,7 @@ export default function MatchAnalysis() {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground animate-pulse">Initializing Tactical Feed...</p>
+        <p className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground animate-pulse">Loading Match Data...</p>
       </div>
     );
   }
@@ -52,10 +52,10 @@ export default function MatchAnalysis() {
           <div className="h-20 w-20 bg-destructive/10 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-destructive/20">
             <Info className="h-10 w-10 text-destructive" />
           </div>
-          <h2 className="text-3xl font-black tracking-tighter uppercase italic mb-2">Match Data Void</h2>
-          <p className="text-muted-foreground font-medium mb-8">The requested match identifier could not be validated against our records. The sequence may have been purged or relocated.</p>
+          <h2 className="text-3xl font-black tracking-tighter uppercase italic mb-2">Match Not Found</h2>
+          <p className="text-muted-foreground font-medium mb-8">The requested match could not be found in our database. It may have been removed or the ID is incorrect.</p>
           <Button variant="outline" className="rounded-xl border-border/50 font-black uppercase tracking-widest text-[10px]" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-4 w-4 mr-2" /> Restore Previous Session
+            <ArrowLeft className="h-4 w-4 mr-2" /> Back to Matches
           </Button>
         </div>
       </div>
@@ -75,7 +75,7 @@ export default function MatchAnalysis() {
             className="rounded-full bg-secondary/50 hover:bg-secondary border border-border/50 group"
           >
             <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
-            <span className="text-[10px] font-black uppercase tracking-widest">Return to Archive</span>
+            <span className="text-[10px] font-black uppercase tracking-widest">Back to Matches</span>
           </Button>
           
           <div className="flex items-center gap-2">
@@ -110,7 +110,7 @@ export default function MatchAnalysis() {
                 </div>
                 <div className="hidden lg:flex items-center gap-4 px-4 h-9 border-l border-border/50 ml-4">
                     <Badge variant="outline" className="text-[9px] font-black border-emerald-500/20 text-emerald-500 bg-emerald-500/5 px-3">
-                        Live Precision: 99.8%
+                        Data Accuracy: 100%
                     </Badge>
                 </div>
             </div>
@@ -131,14 +131,14 @@ export default function MatchAnalysis() {
                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                 <Card className="glass border-border/50 p-8 rounded-[2.5rem] bg-card/40 flex flex-col justify-between h-48 group hover:border-primary/30 transition-all">
                                     <div className="flex justify-between items-start">
-                                        <div className="p-3 rounded-2xl bg-primary/10 border border-primary/20 group-hover:bg-primary group-hover:text-primary-foreground transition-all">
+                                         <div className="p-3 rounded-2xl bg-primary/10 border border-primary/20 group-hover:bg-primary group-hover:text-primary-foreground transition-all">
                                             <Trophy className="h-5 w-5" />
                                         </div>
-                                        <Badge variant="outline" className="text-[9px] font-black uppercase text-muted-foreground border-border/50">Match High</Badge>
+                                        <Badge variant="outline" className="text-[9px] font-black uppercase text-muted-foreground border-border/50">Result</Badge>
                                     </div>
                                     <div className="flex flex-col">
                                         <span className="text-3xl font-black italic tracking-tighter uppercase leading-none">{matchData.match.winner || "No Result"}</span>
-                                        <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest mt-2">{matchData.match.winner ? 'Seized Victory' : 'Final Status'}</span>
+                                        <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest mt-2">{matchData.match.winner ? 'Match Winner' : 'Final Status'}</span>
                                     </div>
                                 </Card>
                                 <Card className="glass border-border/50 p-8 rounded-[2.5rem] bg-card/40 flex flex-col justify-between h-48 group hover:border-accent/30 transition-all">
@@ -146,11 +146,11 @@ export default function MatchAnalysis() {
                                         <div className="p-3 rounded-2xl bg-accent/10 border border-accent/20 group-hover:bg-accent group-hover:text-accent-foreground transition-all">
                                             <Shield className="h-5 w-5" />
                                         </div>
-                                        <Badge variant="outline" className="text-[9px] font-black uppercase text-muted-foreground border-border/50">Strategic Pick</Badge>
+                                        <Badge variant="outline" className="text-[9px] font-black uppercase text-muted-foreground border-border/50">Toss</Badge>
                                     </div>
                                     <div className="flex flex-col">
                                         <span className="text-3xl font-black italic tracking-tighter uppercase leading-none">{matchData.match.toss_decision || "N/A"}</span>
-                                        <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest mt-2">Decided by {matchData.match.toss_winner}</span>
+                                        <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest mt-2">Won by {matchData.match.toss_winner}</span>
                                     </div>
                                 </Card>
                                  <Card className="glass border-border/50 p-8 rounded-[2.5rem] bg-card/40 flex flex-col justify-between h-48 group hover:border-emerald-500/30 transition-all">
@@ -158,11 +158,11 @@ export default function MatchAnalysis() {
                                         <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 group-hover:bg-emerald-500 group-hover:text-white transition-all">
                                             <Zap className="h-5 w-5" />
                                         </div>
-                                        <Badge variant="outline" className="text-[9px] font-black uppercase text-muted-foreground border-border/50">Data Density</Badge>
+                                        <Badge variant="outline" className="text-[9px] font-black uppercase text-muted-foreground border-border/50">Match Volume</Badge>
                                     </div>
                                     <div className="flex flex-col">
                                         <span className="text-3xl font-black italic tracking-tighter uppercase leading-none">{deliveries?.length || 0}</span>
-                                        <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest mt-2">Validated Ball Events</span>
+                                        <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest mt-2">Total Balls Bowled</span>
                                     </div>
                                 </Card>
                                 <Card className="glass border-border/50 p-8 rounded-[2.5rem] bg-card/40 flex flex-col justify-between h-48 group hover:border-purple-500/30 transition-all">
@@ -170,27 +170,27 @@ export default function MatchAnalysis() {
                                         <div className="p-3 rounded-2xl bg-purple-500/10 border border-purple-500/20 group-hover:bg-purple-500 group-hover:text-white transition-all">
                                             <Target className="h-5 w-5" />
                                         </div>
-                                        <Badge variant="outline" className="text-[9px] font-black uppercase text-muted-foreground border-border/50">Capture Rate</Badge>
+                                        <Badge variant="outline" className="text-[9px] font-black uppercase text-muted-foreground border-border/50">Status</Badge>
                                     </div>
                                     <div className="flex flex-col">
-                                        <span className="text-3xl font-black italic tracking-tighter uppercase leading-none">100%</span>
-                                        <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest mt-2">Telemetry Coverage</span>
+                                        <span className="text-3xl font-black italic tracking-tighter uppercase leading-none">Complete</span>
+                                        <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest mt-2">Match Recorded</span>
                                     </div>
                                 </Card>
                              </div>
                              
                              <div className="p-12 glass rounded-[3rem] border-border/50 bg-secondary/5 text-center">
                                 <Activity className="h-10 w-10 mx-auto mb-6 opacity-20" />
-                                <h2 className="text-xl font-black italic tracking-tighter uppercase mb-4">Tactical Summary Active</h2>
+                                <h2 className="text-xl font-black italic tracking-tighter uppercase mb-4">Match Summary</h2>
                                 <p className="text-sm text-muted-foreground max-w-2xl mx-auto font-medium leading-relaxed mb-8">
-                                    Deploying comprehensive analytical modules across six vector planes. Use the navigation nexus above to toggle between tactical displays, statistical breakdowns, and momentum trajectories.
+                                    A comprehensive breakdown of the match, featuring run progression, over-by-over analysis, and key player performances across all sessions.
                                 </p>
                              </div>
 
                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                 <Card className="glass rounded-[3rem] border-border/50 overflow-hidden bg-card/40 shadow-xl">
                                     <div className="p-8 border-b border-border/50 bg-primary/5 flex items-center justify-between">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-primary">Top Strike Operators</span>
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-primary">Top Batters</span>
                                         <Badge variant="outline" className="text-[9px] font-black uppercase tracking-tighter">Batting</Badge>
                                     </div>
                                     <div className="p-4 space-y-2">
@@ -215,7 +215,7 @@ export default function MatchAnalysis() {
                                 </Card>
                                 <Card className="glass rounded-[3rem] border-border/50 overflow-hidden bg-card/40 shadow-xl">
                                     <div className="p-8 border-b border-border/50 bg-accent/5 flex items-center justify-between">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-accent">Suppression Leaders</span>
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-accent">Top Bowlers</span>
                                         <Badge variant="outline" className="text-[9px] font-black uppercase tracking-tighter">Bowling</Badge>
                                     </div>
                                     <div className="p-4 space-y-2">
