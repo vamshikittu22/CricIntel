@@ -60,12 +60,12 @@ export function BowlingTab({ stats, recentMatches, format, isLoading: parentLoad
   const bowlStats = useMemo(() => {
     if (!stats) return null;
     return [
-      { label: "Aggregate Wickets", value: stats.wickets, icon: Target, color: "text-rose-500", highlight: true },
-      { label: "Economy Protocol", value: stats.econ || "—", icon: Activity, color: "text-blue-500" },
-      { label: "Strike Vector", value: stats.bowl_strike_rate || "—", icon: Zap, color: "text-amber-500" },
-      { label: "Average Impact", value: stats.bowl_average || "—", icon: Trophy, color: "text-primary" },
+      { label: "Total Wickets", value: stats.wickets, icon: Target, color: "text-rose-500", highlight: true },
+      { label: "Economy Rate", value: stats.econ || "—", icon: Activity, color: "text-blue-500" },
+      { label: "Strike Rate", value: stats.bowl_strike_rate || "—", icon: Zap, color: "text-amber-500" },
+      { label: "Bowling Average", value: stats.bowl_average || "—", icon: Trophy, color: "text-primary" },
       { label: "Five Wicket Hauls", value: stats.bowl_five_wickets || 0, icon: ShieldAlert, color: "text-rose-600" },
-      { label: "Best Execution", value: stats.bowl_best_figures || "—", icon: History, color: "text-muted-foreground" },
+      { label: "Best Figures", value: stats.bowl_best_figures || "—", icon: History, color: "text-muted-foreground" },
     ];
   }, [stats]);
 
@@ -125,8 +125,8 @@ export function BowlingTab({ stats, recentMatches, format, isLoading: parentLoad
                   <Skull className="h-8 w-8 text-rose-500" />
                </div>
                <div>
-                  <h3 className="text-xl font-black text-foreground uppercase tracking-tight mb-1">Prized Scalps</h3>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500/60 leading-none">Frequent Victimized Targets</p>
+                  <h3 className="text-xl font-black text-foreground uppercase tracking-tight mb-1">Top Victims</h3>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500/60 leading-none">Batters dismissed most by bowler</p>
                </div>
             </div>
 
@@ -166,7 +166,7 @@ export function BowlingTab({ stats, recentMatches, format, isLoading: parentLoad
                      <Dna className="h-8 w-8 text-primary" />
                   </div>
                   <div>
-                     <h3 className="text-xl font-black text-foreground uppercase tracking-tight mb-1">Execution DNA</h3>
+                     <h3 className="text-xl font-black text-foreground uppercase tracking-tight mb-1">Bowling Analysis</h3>
                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/60 leading-none">Statistical Performance Mapping</p>
                   </div>
                </div>

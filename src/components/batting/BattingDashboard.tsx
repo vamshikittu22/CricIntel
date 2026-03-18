@@ -153,12 +153,12 @@ export function BattingDashboard({ stats, recentMatches, format, isLoading: pare
       {/* Primary KPI Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
         {[
-          { label: "Aggregate Matches", value: stats?.matches ?? processedMatches.length, icon: History, color: "text-muted-foreground" },
+          { label: "Matches", value: stats?.matches ?? processedMatches.length, icon: History, color: "text-muted-foreground" },
           { label: "Total Runs", value: stats?.runs ?? processedMatches.reduce((a, b) => a + b.runs, 0), highlight: true, icon: Trophy, color: "text-primary" },
-          { label: "Elite Average", value: stats?.average ?? "—", icon: ShieldCheck, color: "text-blue-600 dark:text-blue-500" },
-          { label: "Strike Index", value: stats?.strike_rate ?? "—", icon: Zap, color: "text-amber-600 dark:text-amber-500" },
-          { label: "Boundary Fours", value: stats?.fours ?? "—", icon: Target, color: "text-primary/70" },
-          { label: "Terminal Sixes", value: stats?.sixes ?? "—", icon: TrendingUp, color: "text-accent" },
+          { label: "Average", value: stats?.average ?? "—", icon: ShieldCheck, color: "text-blue-600 dark:text-blue-500" },
+          { label: "Strike Rate", value: stats?.strike_rate ?? "—", icon: Zap, color: "text-amber-600 dark:text-amber-500" },
+          { label: "Total Fours", value: stats?.fours ?? "—", icon: Target, color: "text-primary/70" },
+          { label: "Total Sixes", value: stats?.sixes ?? "—", icon: TrendingUp, color: "text-accent" },
         ].map((s, i) => (
           <div key={i} className={cn(
             "p-6 rounded-3xl glass flex flex-col justify-between group overflow-hidden transition-all active:scale-[0.98] shadow-lg",
@@ -187,10 +187,7 @@ export function BattingDashboard({ stats, recentMatches, format, isLoading: pare
         {/* Dissmissal breakdown */}
         <div className="p-8 rounded-[2.5rem] glass border-border/50 bg-white/5 dark:bg-white/1 relative overflow-hidden group hover:border-primary/20 transition-all shadow-2xl">
           <div className="flex items-center gap-3 mb-8">
-            <div className="p-2 bg-slate-100 dark:bg-secondary rounded-lg">
-              <Crosshair className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] opacity-80">Exit Vectors</h3>
+            <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] opacity-80">Dismissals</h3>
           </div>
           <DismissalChart breakdown={computedDismissals} />
           {/* New: Pace and Spin dismissals */}
@@ -229,11 +226,8 @@ export function BattingDashboard({ stats, recentMatches, format, isLoading: pare
         <div className="lg:col-span-2 p-8 rounded-[2.5rem] glass border-border/50 bg-white/5 dark:bg-white/1 overflow-hidden relative shadow-2xl">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-12">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Activity className="h-4 w-4 text-primary" />
-              </div>
-              <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] opacity-80">Strategic Phase Engagement</h3>
-            </div>
+              <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] opacity-80">Batting by Phase</h3>
+          </div>
             <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-100 dark:bg-secondary border border-black/5 dark:border-border shadow-sm">
               <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-60">Consistency:</span>
               <span className="text-[10px] font-black text-primary">{consistency}%</span>
@@ -300,10 +294,7 @@ export function BattingDashboard({ stats, recentMatches, format, isLoading: pare
 
         <div className="p-8 rounded-[3rem] glass border-border/50 bg-white/5 dark:bg-white/1 shadow-2xl relative overflow-hidden">
           <div className="flex items-center gap-3 mb-10">
-            <div className="p-2 bg-slate-100 dark:bg-secondary rounded-lg">
-              <MapIcon className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] opacity-80">Wagon Wheel Intelligence</h3>
+            <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] opacity-80">Wagon Wheel</h3>
           </div>
           <WagonWheel deliveries={deliveries ?? []} />
         </div>
@@ -313,10 +304,7 @@ export function BattingDashboard({ stats, recentMatches, format, isLoading: pare
         {/* Dynamic Splits Card */}
         <div className="p-8 rounded-[3rem] glass border-border/50 bg-white/5 dark:bg-white/1 shadow-2xl">
           <div className="flex items-center gap-3 mb-10">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <Zap className="h-4 w-4 text-primary" />
-            </div>
-            <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] opacity-80">Kinetic vs Variable Splits</h3>
+            <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] opacity-80">Pace vs Spin</h3>
           </div>
           <PaceVsSpin stats={vsBowlingStats as any} />
         </div>

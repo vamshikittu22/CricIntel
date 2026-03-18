@@ -130,19 +130,24 @@ export interface PlayerWithCareer {
   fielding: FieldingCareer | null;
 }
 
+export interface DismissalKind {
+  kind: string;
+  count: number;
+}
+
 // ── Individual Player Hooks ──────────────────────────────────────────
 
 export function usePlayerBattingCareer(playerId: string) {
   return useQuery({
     queryKey: ['analytics', 'batting-career', playerId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('analytics_batting_career')
         .select('*')
         .eq('player_id', playerId)
         .order('format');
       if (error) throw error;
-      return data as BattingCareer[];
+      return (data as BattingCareer[]) || [];
     },
     enabled: !!playerId,
     staleTime: 1000 * 60 * 10,
@@ -153,13 +158,13 @@ export function usePlayerBowlingCareer(playerId: string) {
   return useQuery({
     queryKey: ['analytics', 'bowling-career', playerId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('analytics_bowling_career')
         .select('*')
         .eq('player_id', playerId)
         .order('format');
       if (error) throw error;
-      return data as BowlingCareer[];
+      return (data as BowlingCareer[]) || [];
     },
     enabled: !!playerId,
     staleTime: 1000 * 60 * 10,
@@ -170,13 +175,13 @@ export function usePlayerFieldingCareer(playerId: string) {
   return useQuery({
     queryKey: ['analytics', 'fielding-career', playerId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('analytics_fielding_career')
         .select('*')
         .eq('player_id', playerId)
         .order('format');
       if (error) throw error;
-      return data as FieldingCareer[];
+      return (data as FieldingCareer[]) || [];
     },
     enabled: !!playerId,
     staleTime: 1000 * 60 * 10,
@@ -189,19 +194,19 @@ export function usePlayerFullCareer(playerId: string, format: string) {
     queryKey: ['analytics', 'full-career', playerId, format],
     queryFn: async () => {
       const [batting, bowling, fielding] = await Promise.all([
-        supabase
+        (supabase as any)
           .from('analytics_batting_career')
           .select('*')
           .eq('player_id', playerId)
           .eq('format', format)
           .maybeSingle(),
-        supabase
+        (supabase as any)
           .from('analytics_bowling_career')
           .select('*')
           .eq('player_id', playerId)
           .eq('format', format)
           .maybeSingle(),
-        supabase
+        (supabase as any)
           .from('analytics_fielding_career')
           .select('*')
           .eq('player_id', playerId)
@@ -222,6 +227,25 @@ export function usePlayerFullCareer(playerId: string, format: string) {
   });
 }
 
+export function useBowlerDismissalKinds(bowlerId: string, format: string) {
+  return useQuery({
+    queryKey: ['analytics', 'dismissal-kinds', bowlerId, format],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc('get_bowler_dismissal_kinds', {
+        p_bowler_id: bowlerId,
+        p_format: format
+      });
+      if (error) throw error;
+      return (data as any[]).map(d => ({ 
+        kind: d.dismissal_kind, 
+        count: Number(d.count) 
+      })) as DismissalKind[];
+    },
+    enabled: !!bowlerId && !!format,
+    staleTime: 1000 * 60 * 10,
+  });
+}
+
 // ── Comparison Hooks ─────────────────────────────────────────────────
 
 // Returns both players' batting stats in one query — for compare page
@@ -233,7 +257,7 @@ export function useCompareBatters(
   return useQuery({
     queryKey: ['analytics', 'compare-bat', player1Id, player2Id, format],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('analytics_batting_career')
         .select('*, players!inner(id, name, country, gender)')
         .in('player_id', [player1Id, player2Id])
@@ -254,7 +278,7 @@ export function useCompareBowlers(
   return useQuery({
     queryKey: ['analytics', 'compare-bowl', player1Id, player2Id, format],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('analytics_bowling_career')
         .select('*, players!inner(id, name, country, gender)')
         .in('player_id', [player1Id, player2Id])
@@ -277,12 +301,12 @@ export function useCompareAllrounders(
     queryKey: ['analytics', 'compare-all', player1Id, player2Id, format],
     queryFn: async () => {
       const [batting, bowling] = await Promise.all([
-        supabase
+        (supabase as any)
           .from('analytics_batting_career')
           .select('*, players!inner(id, name, country, gender)')
           .in('player_id', [player1Id, player2Id])
           .eq('format', format),
-        supabase
+        (supabase as any)
           .from('analytics_bowling_career')
           .select('*, players!inner(id, name, country, gender)')
           .in('player_id', [player1Id, player2Id])
@@ -294,12 +318,12 @@ export function useCompareAllrounders(
       // Merge by player_id into one object per player
       const merged = [player1Id, player2Id].map(pid => ({
         player_id: pid,
-        batting: batting.data?.find(b => b.player_id === pid) ?? null,
-        bowling: bowling.data?.find(b => b.player_id === pid) ?? null,
+        batting: batting.data?.find((b: any) => b.player_id === pid) ?? null,
+        bowling: bowling.data?.find((b: any) => b.player_id === pid) ?? null,
         // Allround index: weighted composite score
         allround_index: (() => {
-          const bat = batting.data?.find(b => b.player_id === pid);
-          const bowl = bowling.data?.find(b => b.player_id === pid);
+          const bat = batting.data?.find((b: any) => b.player_id === pid);
+          const bowl = bowling.data?.find((b: any) => b.player_id === pid);
           if (!bat && !bowl) return null;
           const batScore = (bat?.batting_avg ?? 0) * 0.35 +
                            (bat?.strike_rate ?? 0) * 0.15;
@@ -329,7 +353,7 @@ export function useH2H(
   return useQuery({
     queryKey: ['analytics', 'h2h', batterId, bowlerId, format],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('analytics_player_vs_player')
         .select('*')
         .eq('batter_id', batterId)
@@ -353,12 +377,13 @@ export function useBatterVsAllBowlers(
   return useQuery({
     queryKey: ['analytics', 'batter-vs-bowlers', batterId, format, minBalls],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('analytics_player_vs_player')
         .select('*, players!bowler_id(id, name, country)')
         .eq('batter_id', batterId)
         .eq('format', format)
         .gte('balls', minBalls)
+        .order('dismissals', { ascending: false })
         .order('balls', { ascending: false });
       if (error) throw error;
       return data;
@@ -377,13 +402,15 @@ export function useBowlerVsAllBatters(
   return useQuery({
     queryKey: ['analytics', 'bowler-vs-batters', bowlerId, format, minBalls],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('analytics_player_vs_player')
         .select('*, players!batter_id(id, name, country)')
         .eq('bowler_id', bowlerId)
         .eq('format', format)
         .gte('balls', minBalls)
-        .order('dismissals', { ascending: false });
+        .gte('balls', minBalls)
+        .order('dismissals', { ascending: false })
+        .order('balls', { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -401,7 +428,7 @@ export function usePlayerVsOpposition(
   return useQuery({
     queryKey: ['analytics', 'vs-opposition', playerId, format],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('analytics_player_vs_opposition')
         .select('*')
         .eq('player_id', playerId)
@@ -422,14 +449,14 @@ export function useBattingPosition(
   return useQuery({
     queryKey: ['analytics', 'batting-position', playerId, format],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('analytics_batting_position')
         .select('*')
         .eq('player_id', playerId)
         .eq('format', format)
         .order('position');
       if (error) throw error;
-      return data as BattingPosition[];
+      return (data as BattingPosition[]) || [];
     },
     enabled: !!playerId && !!format,
     staleTime: 1000 * 60 * 10,
@@ -445,7 +472,7 @@ export function usePlayerPartnerships(
   return useQuery({
     queryKey: ['analytics', 'partnerships', playerId, format],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('analytics_partnerships')
         .select('*, b1:players!batter1_id(id, name, country), b2:players!batter2_id(id, name, country)')
         .or(`batter1_id.eq.${playerId},batter2_id.eq.${playerId}`)
@@ -470,7 +497,7 @@ export function useAnalyticsTopBatters(
   return useQuery({
     queryKey: ['analytics', 'top-batters', format, gender, limit],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('analytics_batting_career')
         .select('*, players!inner(id, name, country, gender)')
         .eq('format', format)
@@ -495,7 +522,7 @@ export function useAnalyticsTopBowlers(
   return useQuery({
     queryKey: ['analytics', 'top-bowlers', format, gender, limit],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('analytics_bowling_career')
         .select('*, players!inner(id, name, country, gender)')
         .eq('format', format)

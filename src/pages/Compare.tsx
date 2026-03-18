@@ -138,12 +138,24 @@ function PlayerSearchBox({
 
     const timer = setTimeout(async () => {
       setLoading(true);
-      const { data, error } = await supabase
+      const searchTerms = query.trim().split(/\s+/);
+      
+      let baseQuery = supabase
         .from('players')
         .select('id, name, country')
-        .ilike('name', `%${query}%`)
         .neq('id', excludeId || '')
-        .limit(8);
+        .limit(15);
+
+      if (searchTerms.length > 1) {
+        // Handle "Virat Kohli" -> ilike("Virat Kohli") OR (ilike("V%Kohli"))
+        const initial = searchTerms[0][0];
+        const lastName = searchTerms[searchTerms.length - 1];
+        baseQuery = baseQuery.or(`name.ilike.%${query}%,name.ilike.${initial}%${lastName}%`);
+      } else {
+        baseQuery = baseQuery.ilike('name', `%${query}%`);
+      }
+
+      const { data, error } = await baseQuery;
       
       if (!error && data) setResults(data);
       setLoading(false);
@@ -153,7 +165,7 @@ function PlayerSearchBox({
   }, [query, excludeId]);
 
   return (
-    <div className="relative w-full group">
+    <div className={cn("relative w-full group", (isOpen || results.length > 0) && "z-[70]")}>
       <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/50 mb-2 block px-1">
         {label}
       </label>
@@ -167,12 +179,25 @@ function PlayerSearchBox({
                 <span className="text-[10px] font-bold text-muted-foreground uppercase">{selectedPlayer.country}</span>
               </div>
             </div>
-            <button 
-              onClick={() => { onSelect(null); setQuery(""); }}
-              className="p-2 hover:bg-red-50 dark:hover:bg-red-500/10 text-muted-foreground hover:text-red-500 rounded-xl transition-colors"
-            >
-              <Zap className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button 
+                onClick={() => { onSelect(null); setQuery(""); }}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 text-muted-foreground hover:text-primary rounded-xl transition-colors group/replace"
+                title="Change Player"
+              >
+                <Search className="h-4 w-4 group-hover/replace:scale-110 transition-transform" />
+              </button>
+              <button 
+                onClick={() => { onSelect(null); setQuery(""); }}
+                className="p-2 hover:bg-red-50 dark:hover:bg-red-500/10 text-muted-foreground hover:text-red-500 rounded-xl transition-colors group/remove"
+                title="Remove Player"
+              >
+                <motion.div whileHover={{ rotate: 90 }} transition={{ type: "spring", stiffness: 300 }}>
+                  <Zap className="h-4 w-4 hidden" /> {/* Hidden old icon */}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </motion.div>
+              </button>
+            </div>
           </div>
         ) : (
           <div className="relative">
@@ -219,7 +244,7 @@ function PlayerSearchBox({
  * FormatPills: Selector for match formats.
  */
 function FormatPills({ selected, onChange }: { selected: string; onChange: (f: string) => void }) {
-  const formats = ['T20I', 'ODI', 'Test', 'IPL', 'T20'];
+  const formats = ['T20I', 'ODI', 'Test'];
   return (
     <div className="flex flex-wrap gap-2">
       {formats.map((f) => (
@@ -255,16 +280,20 @@ function CompareSkeletons() {
 // ── Main Compare Page Component ──────────────────────────────────────
 
 export default function Compare() {
+  const [mounted, setMounted] = useState(false);
   const [mode, setMode] = useState<'bat' | 'bowl' | 'allround' | 'h2h'>('bat');
   const [player1, setPlayer1] = useState<{ id: string; name: string; country: string } | null>(null);
   const [player2, setPlayer2] = useState<{ id: string; name: string; country: string } | null>(null);
   const [format, setFormat] = useState<string>('T20I');
 
-  // Handle mode change -> Reset selections
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Handle mode change -> Persist selections
   const handleModeChange = (m: 'bat' | 'bowl' | 'allround' | 'h2h') => {
     setMode(m);
-    setPlayer1(null);
-    setPlayer2(null);
+    // Removed player reset logic to keep players persistent
   };
 
   // ── Data Fetching ──────────────────────────────────────────────────
@@ -333,6 +362,17 @@ export default function Compare() {
 
   // ── Render Header ──────────────────────────────────────────────────
 
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0c] flex flex-col items-center justify-center space-y-4">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <span className="text-[10px] font-black uppercase tracking-[0.5em] text-muted-foreground animate-pulse">
+          Loading Compare Intel...
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0a0a0c] text-foreground">
       <AppHeader />
@@ -383,9 +423,11 @@ export default function Compare() {
 
         {/* ── Selector Panel ─────────────────────────────────────────── */}
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-8 items-end bg-white dark:bg-white/5 p-10 rounded-[3rem] border border-black/5 dark:border-white/5 shadow-2xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[120px] rounded-full -z-10" />
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-accent/5 blur-[120px] rounded-full -z-10" />
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-8 items-end bg-white dark:bg-white/5 p-10 rounded-[3rem] border border-black/5 dark:border-white/5 shadow-2xl relative group">
+          <div className="absolute inset-0 rounded-[3rem] overflow-hidden -z-10 pointer-events-none">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[120px] rounded-full" />
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-accent/5 blur-[120px] rounded-full" />
+          </div>
 
           <PlayerSearchBox 
             label={mode === 'h2h' ? "Batter" : "Player 1"}

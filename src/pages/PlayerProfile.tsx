@@ -10,6 +10,10 @@ import { BowlingTab } from "@/components/bowling/BowlingTab";
 import { WeaknessesTab } from "@/components/weaknesses/WeaknessesTab";
 import { FieldingTab } from "@/components/fielding/FieldingTab";
 import { FormTab } from "@/components/form/FormTab";
+import OppositionTab from "@/components/opposition/OppositionTab";
+import BattingPositionTab from "@/components/position/BattingPositionTab";
+import PartnershipTab from "@/components/partnerships/PartnershipTab";
+import H2HDashboard from "@/components/profile/H2HDashboard";
 import { EmptyState } from "@/components/ui/empty-state";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
@@ -41,11 +45,26 @@ export default function PlayerProfile() {
     sectionRefs.current[key] = el;
   }, []);
 
+  const defaultFormat = useMemo(() => {
+    const played = formatsPlayed.filter(f => f !== "ALL");
+    return played.length > 0 ? played[0] : "T20I";
+  }, [formatsPlayed]);
+
   const handleTabChange = (tab: ProfileTab) => {
     setSection(tab);
-    const el = sectionRefs.current[tab];
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    // Intersection of state update and scroll
+    setTimeout(() => {
+      const el = sectionRefs.current[tab];
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
   };
+
+  useEffect(() => {
+    const el = sectionRefs.current[section];
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [section]);
 
   const dataLoading = summaryLoading || matchesLoading;
 
@@ -129,6 +148,51 @@ export default function PlayerProfile() {
             {section === "fielding" && (
               <div ref={setRef("fielding")}>
                 <FieldingTab format={format} stats={stats} isLoading={dataLoading} />
+              </div>
+            )}
+
+            {((section as string) === "opposition" || section === "batting-opposition" || section === "bowling-opposition") && (
+              <div ref={setRef(section)}>
+                <OppositionTab 
+                  playerId={id!} 
+                  playerName={player.name} 
+                  initialFormat={(format === "All" || format === "ALL") ? defaultFormat : format}
+                />
+              </div>
+            )}
+
+            {section === "batting-position" && (
+              <div ref={setRef("batting-position")}>
+                <BattingPositionTab 
+                  playerId={id!} 
+                  playerName={player.name} 
+                  initialFormat={(format === "All" || format === "ALL") ? defaultFormat : format}
+                />
+              </div>
+            )}
+
+            {section === "batting-partnerships" && (
+              <div ref={setRef("batting-partnerships")}>
+                <PartnershipTab 
+                  playerId={id!} 
+                  playerName={player.name} 
+                  initialFormat={(format === "All" || format === "ALL") ? defaultFormat : format}
+                />
+              </div>
+            )}
+
+            {(section === "h2h" || section === "batting-h2h" || section === "bowling-h2h") && (
+              <div ref={setRef(section)}>
+                <H2HDashboard 
+                  playerId={id!} 
+                  playerName={player.name} 
+                  initialFormat={(format === "All" || format === "ALL") ? defaultFormat : format}
+                  initialView={section === "bowling-h2h" ? 'victims' : 'nemesis'}
+                  onViewChange={(v) => {
+                    // Update section WITHOUT scrolling to avoid jumping
+                    setSection(v === 'victims' ? 'bowling-h2h' : 'batting-h2h');
+                  }}
+                />
               </div>
             )}
 
