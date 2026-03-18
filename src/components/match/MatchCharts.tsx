@@ -136,9 +136,9 @@ export default function MatchCharts({ deliveries, match }: MatchChartsProps) {
         </CardContent>
       </Card>
 
-      {/* Manhattan Chart: Runs Per Over */}
+      {/* Runs Per Over */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {Object.entries(overByOverData).map(([inning, overs], idx) => (
+        {Object.entries(overByOverData).slice(0, 2).map(([inning, overs], idx) => (
           <Card key={inning} className="glass rounded-[3rem] border-border/50 bg-card/40 overflow-hidden shadow-2xl">
             <CardHeader className="p-8 border-b border-border/50 bg-gradient-to-r from-secondary/30 to-transparent">
               <div className="flex items-center gap-3">
