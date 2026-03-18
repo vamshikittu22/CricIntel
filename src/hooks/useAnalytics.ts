@@ -120,6 +120,72 @@ export interface Partnership {
   run_rate: number | null;
 }
 
+export interface MatchDetail {
+  id: string;
+  format: string;
+  match_date: string;
+  venue: string;
+  team1: string;
+  team2: string;
+  winner: string | null;
+  result: string | null;
+  toss_winner: string | null;
+  toss_decision: string | null;
+  event_name: string | null;
+}
+
+export interface MatchPlayerStat {
+  match_id: string;
+  player_id: string;
+  player_name: string;
+  team: string;
+  inning: number;
+  is_batter: boolean;
+  is_bowler: boolean;
+  bat_runs: number;
+  bat_balls: number;
+  bat_fours: number;
+  bat_sixes: number;
+  bat_dismissal_kind: string | null;
+  bat_not_out: boolean;
+  bowl_overs: string;
+  bowl_maidens: number;
+  bowl_runs: number;
+  bowl_wickets: number;
+  bowl_econ: string;
+}
+
+export interface MatchDelivery {
+  id: number;
+  match_id: string;
+  innings: number;
+  over_number: number;
+  ball_number: number;
+  striker: string;
+  non_striker: string;
+  bowler: string;
+  batting_team: string;
+  bowling_team: string;
+  runs_off_bat: number;
+  extras: number;
+  is_wicket: boolean;
+  player_dismissed: string | null;
+  dismissal_kind: string | null;
+  fielder: string | null;
+  phase: string;
+}
+
+export interface OverSummary {
+  overNumber: number;
+  innings: number;
+  runs: number;
+  wickets: number;
+  deliveries: MatchDelivery[];
+  bowler: string;
+  cumulativeRuns: number;
+  cumulativeWickets: number;
+}
+
 export interface PlayerWithCareer {
   id: string;
   name: string;
@@ -538,3 +604,55 @@ export function useAnalyticsTopBowlers(
     staleTime: 1000 * 60 * 5,
   });
 }
+
+// ── Match Analysis Hooks ──────────────────────────────────────────
+
+export function useMatchDetail(matchId: string | undefined) {
+  return useQuery({
+    queryKey: ['match', 'detail', matchId],
+    queryFn: async () => {
+      const { data: match, error: matchError } = await supabase
+        .from('matches')
+        .select('*')
+        .eq('id', matchId!)
+        .single();
+      if (matchError) throw matchError;
+
+      const { data: stats, error: statsError } = await (supabase as any)
+        .from('match_player_stats')
+        .select('*, players!inner(name)')
+        .eq('match_id', matchId!);
+      if (statsError) throw statsError;
+
+      return {
+        match: match as MatchDetail,
+        stats: (stats || []).map((s: any) => ({
+          ...s,
+          player_name: s.players?.name || 'Unknown'
+        })) as MatchPlayerStat[]
+      };
+    },
+    enabled: !!matchId,
+    staleTime: 1000 * 60 * 30, // 30 minutes
+  });
+}
+
+export function useMatchDeliveries(matchId: string | undefined) {
+  return useQuery({
+    queryKey: ['match', 'deliveries', matchId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('deliveries')
+        .select('*')
+        .eq('match_id', matchId!)
+        .order('innings', { ascending: true })
+        .order('over_number', { ascending: true })
+        .order('ball_number', { ascending: true });
+      if (error) throw error;
+      return data as MatchDelivery[];
+    },
+    enabled: !!matchId,
+    staleTime: Infinity, // Delivery data is historical/static
+  });
+}
+

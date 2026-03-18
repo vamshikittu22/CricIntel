@@ -233,7 +233,11 @@ export default function MatchHistory() {
                             </TableHeader>
                             <TableBody>
                               {eventGroup.matches.map((inn, i) => (
-                                <TableRow key={`${inn.matchId}-${i}`} className="border-border/30 group">
+                                <TableRow 
+                                  key={`${inn.matchId}-${i}`} 
+                                  className="border-border/30 group cursor-pointer hover:bg-muted/50 transition-colors"
+                                  onClick={() => navigate(`/match/${inn.matchId}`)}
+                                >
                                   <TableCell className="text-xs whitespace-nowrap pl-6 py-4 font-mono text-muted-foreground">
                                     {inn.date}
                                   </TableCell>
